@@ -1,0 +1,9 @@
+name: AdvAttacks
+channels:
+  - conda-forge
+dependencies:
+  - python==3.12.9
+  - anaconda
+  - pip
+  - pip:
+    - -r file:requirements.txt
