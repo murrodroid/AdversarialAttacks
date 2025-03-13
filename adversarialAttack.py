@@ -1,13 +1,12 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
-import torchvision.transforms as transforms
 from PIL import Image
 import matplotlib.pyplot as plt
 import argparse
 import os
-import torch.nn.functional as F
+
+from src.datasets.cifar10 import Cifar10
 
 from src.attacks.fsgm import fgsm_attack
 from src.attacks.pgd import pgd_attack
@@ -32,23 +31,9 @@ class AdversarialAttacker:
         self.model.eval()  # Set model to evaluation mode
         
         if dataset == "mnist":
-            self.transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.1307,), (0.3081,))
-            ])
-            self.inverse_transform = transforms.Compose([
-                transforms.Normalize((-0.1307/0.3081,), (1/0.3081,))
-            ])
+            self.dataset = Cifar10()
         elif dataset == "cifar10":
-            self.transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))
-            ])
-            inv_mean = [-m/s for m, s in zip((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))]
-            inv_std = [1/s for s in (0.2023,0.1994,0.2010)]
-            self.inverse_transform = transforms.Compose([
-                transforms.Normalize(tuple(inv_mean), tuple(inv_std))
-            ])
+            self.dataset = Cifar10()
         else:
             raise ValueError("Dataset not supported")
     
@@ -65,7 +50,7 @@ class AdversarialAttacker:
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image.astype(np.uint8))
         
-        tensor = self.transform(image).unsqueeze(0).to(self.device)
+        tensor = self.dataset.transform(image).unsqueeze(0).to(self.device)
         return tensor
     
     def postprocess_image(self, tensor):
@@ -79,7 +64,7 @@ class AdversarialAttacker:
             PIL Image
         """
         tensor = tensor.squeeze(0).detach().cpu()
-        tensor = self.inverse_transform(tensor)
+        tensor = self.dataset.inverse_transform(tensor)
         tensor = torch.clamp(tensor, 0, 1)
         
         # Convert to PIL image
@@ -317,6 +302,7 @@ class AdversarialAttacker:
             Tuple of (original_image, adversarial_image, original_class, adversarial_class)
         """
         tensor_image = self.preprocess_image(image) if not torch.is_tensor(image) else image.clone()
+        tensor_image = tensor_image.to(self.device)
         
         # Get original prediction
         orig_class, orig_conf = self.predict(tensor_image)
@@ -439,23 +425,19 @@ def main():
     
     # Create the attacker
     attacker = AdversarialAttacker(model, args.dataset)
-    
-    # Load the image
-    try:
-        image = Image.open(args.image).convert('L')  # Convert to grayscale
-    except Exception as e:
-        print(f"Error loading image: {e}")
-        return
-    
-    try:
-        image = Image.open(args.image)
-        if args.dataset == "mnist":
-            image = image.convert('L').resize((28,28))
-        elif args.dataset == "cifar10":
-            image = image.convert('RGB').resize((32,32))
-    except Exception as e:
-        print(f"Error loading image: {e}")
-        return
+
+    images = attacker.dataset.get_sample_from_class(1)
+    image = images[0]
+       
+    # try:
+    #     image = Image.open(args.image)
+    #     if args.dataset == "mnist":
+    #         image = image.convert('L').resize((28,28))
+    #     elif args.dataset == "cifar10":
+    #         image = image.convert('RGB').resize((32,32))
+    # except Exception as e:
+    #     print(f"Error loading image: {e}")
+    #     return
     
     # Create attack kwargs from args
     attack_kwargs = {
