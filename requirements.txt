@@ -1,0 +1,8 @@
+matplotlib==3.10.0
+numpy==1.26.4
+seaborn==0.13.2
+sympy==1.13.1
+torch==2.2.0+cu118
+torchaudio==2.2.0
+torchvision==0.17.0
+tqdm==4.67.0
