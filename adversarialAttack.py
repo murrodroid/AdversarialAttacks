@@ -8,7 +8,7 @@ import random
 
 from src.datasets.cifar10 import Cifar10
 
-from src.attacks.fsgm import fgsm_attack
+from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
 
 
