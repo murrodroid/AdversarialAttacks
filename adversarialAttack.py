@@ -140,7 +140,7 @@ def main():
     parser.add_argument('--attack', type=str, default='fgsm', 
                         choices=['fgsm', 'pgd', 'deepfool', 'cw'],
                         help='Attack type')
-    parser.add_argument('--epsilon', type=float, default=0.5, help='Epsilon for FGSM/PGD attack')
+    parser.add_argument('--epsilon', type=float, default=0.03, help='Epsilon for FGSM/PGD attack')
     parser.add_argument('--alpha', type=float, default=0.05, help='Step size for PGD attack')
     parser.add_argument('--iterations', type=int, default=200, help='Max iterations')
     parser.add_argument('--output', type=str, default=None, help='Output directory')
