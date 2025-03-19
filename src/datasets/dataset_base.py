@@ -14,6 +14,9 @@ class DatasetBase(ABC):
   @property
   def inverse_transforms(self):
     return self.inverse_transform
+  
+  def get_class_name(self, class_id):
+    return self.labels[class_id]
 
   def get_sample_from_class(self, class_idx, train=True, num_images=1):
     dataset = self._dataset(root=self.path, train=train, transform=self.transforms, download=self.download)

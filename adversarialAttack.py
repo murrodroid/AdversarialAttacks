@@ -64,7 +64,7 @@ class AdversarialAttacker:
         tensor_image = tensor_image.to(self.device)
         
         orig_class, orig_conf = self.predict(tensor_image)
-        print(f"Original image classified as {orig_class} with {orig_conf:.4f} confidence")
+        print(f"Original image classified as {self.dataset.get_class_name(orig_class)} ({orig_class}) with {orig_conf:.4f} confidence")
         
         # Generate adversarial example
         if attack_type.lower() == 'fgsm':
@@ -81,7 +81,7 @@ class AdversarialAttacker:
         print(f"creating attack image using {attack_type} targeting class {target_class}") 
         
         adv_class, adv_conf = self.predict(adv_tensor)
-        print(f"Adversarial image classified as {adv_class} with {adv_conf:.4f} confidence")
+        print(f"Adversarial image classified as {self.dataset.get_class_name(adv_class)} ({adv_class}) with {adv_conf:.4f} confidence")
         
         orig_img = self.postprocess_image(tensor_image)
         adv_img = self.postprocess_image(adv_tensor)
@@ -134,7 +134,7 @@ def main():
     torch.cuda.manual_seed_all(seed)
 
     parser = argparse.ArgumentParser(description='Generate adversarial examples for different datasets')
-    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist','cifar10'])
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=['mnist','cifar10'])
     parser.add_argument('--source', type=int, required=True, help='Source class (0-9)')
     parser.add_argument('--target', type=int, required=True, help='Target class (0-9)')
     parser.add_argument('--attack', type=str, default='fgsm', 

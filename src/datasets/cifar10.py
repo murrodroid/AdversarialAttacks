@@ -17,3 +17,5 @@ class Cifar10(DatasetBase):
         self.inverse_transform = transforms.Compose([
             transforms.Normalize(tuple(inv_mean), tuple(inv_std))
         ])
+
+        self.labels = ("airplane", "automobile","bird","cat","deer","dog","frog","horse","ship","truck")
