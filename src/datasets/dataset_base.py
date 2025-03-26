@@ -2,7 +2,7 @@ from abc import ABC
 import torch
 
 class DatasetBase(ABC):
-  def __init__(self, dataset, path='./dataset', download=True):
+  def __init__(self, dataset, path='./data', download=True):
     self.download = download
     self.path = path
     self._dataset = dataset
