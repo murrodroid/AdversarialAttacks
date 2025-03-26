@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import argparse
 import os
 import random
+import torchvision.models as models
 
 from src.datasets.cifar10 import Cifar10
 
@@ -120,7 +121,8 @@ def visualize_results(original_image, adversarial_image, orig_class, adv_class, 
 
 def load_model(dataset):
     if dataset == "cifar10":
-        model = torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True)
+        # model = torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True)
+        model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
     else:
         raise ValueError("Dataset not supported")
     return model
