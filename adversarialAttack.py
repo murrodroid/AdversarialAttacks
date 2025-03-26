@@ -135,8 +135,8 @@ def main():
 
     parser = argparse.ArgumentParser(description='Generate adversarial examples for different datasets')
     parser.add_argument('--dataset', type=str, default='cifar10', choices=['mnist','cifar10'])
-    parser.add_argument('--source', type=int, required=True, help='Source class (0-9)')
-    parser.add_argument('--target', type=int, required=True, help='Target class (0-9)')
+    parser.add_argument('--source', type=int, default=0, help='Source class (0-9)')
+    parser.add_argument('--target', type=int, default=1, help='Target class (0-9)')
     parser.add_argument('--attack', type=str, default='fgsm', 
                         choices=['fgsm', 'pgd', 'deepfool', 'cw'],
                         help='Attack type')
