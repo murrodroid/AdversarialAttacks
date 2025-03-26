@@ -10,10 +10,10 @@ from src.datasets.cifar10 import Cifar10
 
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
-
+from src.utils.torch_util import getDevice
 
 class AdversarialAttacker:
-    def __init__(self, model, dataset, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    def __init__(self, model, dataset, device = getDevice()):
         self.model = model
         self.device = device
         self.model.to(device)
