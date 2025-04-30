@@ -9,13 +9,15 @@ def fgsm_attack(model: object, image: Tensor, target_class: int, epsilon: float 
     perturbed_image = image.clone().detach().requires_grad_(True)
     target = torch.tensor([target_class], device=perturbed_image.device)
     citerion = nn.CrossEntropyLoss()
+    success = False
 
     for i in range(max_iters):
         output = model(perturbed_image)
         pred_class = output.argmax(dim=1).item()
-        if break_early and pred_class == target_class:
-            # print(f"Success! Reached target class in {i+1} iterations")
-            break 
+        if pred_class == target_class:
+            success = True
+            if break_early:
+                break
         
         loss = -citerion(output, target) 
         model.zero_grad()
@@ -29,5 +31,5 @@ def fgsm_attack(model: object, image: Tensor, target_class: int, epsilon: float 
         
         perturbed_image.requires_grad_(True)
     
-    return perturbed_image
+    return perturbed_image, success
 

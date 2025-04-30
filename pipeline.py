@@ -177,15 +177,20 @@ def run_single_generation(config):
                     attack_kwargs["max_iter"] = iterations
 
                 try:
-                    adv_tensor = attack_func(
+                    adv_tensor, attack_successful = attack_func(
                         model,
                         original_tensor.clone().detach(),
                         target_class,
                         **attack_kwargs,
-                    ).detach()
+                    )
+                    adv_tensor = adv_tensor.detach()
 
                     with torch.no_grad():
                         adv_pred_class = model(adv_tensor).argmax(1).item()
+
+                    predicted_success = (adv_pred_class == target_class)
+                    if predicted_success != attack_successful:
+                        print(f"[Proc {process_id} Warning] Mismatch between attack success flag ({attack_successful}) and final prediction ({predicted_success}) for idx {dataset_index}, target {target_class}. Using prediction.")
 
                     adv_pil = tensor_to_pil(adv_tensor, dataset_instance)
 
@@ -211,6 +216,7 @@ def run_single_generation(config):
                         "dataset_index": dataset_index,
                         "original_pred_class": orig_pred_class,
                         "adversarial_pred_class": adv_pred_class,
+                        "attack_successful": attack_successful,
                         "adversarial_image_path": img_path,
                     }
                     metadata_results.append(metadata_row)
@@ -225,11 +231,14 @@ def run_single_generation(config):
                             "dataset": dataset_name,
                             "attack": attack_name,
                             "epsilon": epsilon,
-                            "alpha": alpha,
+                            "alpha": alpha if attack_name == "pgd" else None,
                             "iterations": iterations,
                             "source_class": source_class,
                             "target_class": target_class,
                             "dataset_index": dataset_index,
+                            "original_pred_class": -1,
+                            "adversarial_pred_class": -1,
+                            "attack_successful": None,
                             "adversarial_image_path": None,
                             "error": str(e),
                         }
