@@ -121,8 +121,8 @@ def visualize_results(original_image, adversarial_image, orig_class, adv_class, 
 
 def load_model(dataset):
     if dataset == "cifar10":
-        # model = torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True)
-        model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+        model = torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True)
+        # model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
     else:
         raise ValueError("Dataset not supported")
     return model
