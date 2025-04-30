@@ -11,8 +11,9 @@ from src.datasets.cifar10 import Cifar10
 
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
-
+from src.attacks.cw import cw_attack
 from src.utils.torch_util import getDevice
+
 
 class AdversarialAttacker:
     def __init__(self, model, dataset, device = getDevice()):
@@ -76,7 +77,7 @@ class AdversarialAttacker:
         elif attack_type.lower() == 'deepfool':
             adv_tensor = self.deepfool_attack(tensor_image, target_class, **kwargs)
         elif attack_type.lower() in ['cw', 'carlini_wagner']:
-            adv_tensor = self.carlini_wagner_attack(tensor_image, target_class, **kwargs)
+            adv_tensor = cw_attack(tensor_image, target_class, **kwargs)
         else:
             raise ValueError(f"Unknown attack type: {attack_type}")
         
