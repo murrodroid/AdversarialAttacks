@@ -17,6 +17,6 @@ def pgd_attack(model, image, target_class, epsilon=0.3, alpha=0.01, max_iter=100
     eta = torch.clamp(adv - original, -epsilon, epsilon)
     adv = torch.clamp(original + eta, image.min(), image.max())
     if model(adv).argmax(1).item() == target_class:
-      print(f"Attack successful after {i+1} iterations!")
+      # print(f"Attack successful after {i+1} iterations!")
       break
   return adv
