@@ -21,20 +21,39 @@ def cw_attack(model:object, source_image: Tensor, target_class: int, lr: int = 0
 
     #Create adam optimizer
     optimizer = torch.optim.Adam([w], lr=lr)
+
+
+    #Create probability evaluation metric variables
+    success = False
+    first_success_iter = None
+    first_success_output = None
+    final_output = None
     
     #Loop for optimizing the adversarial example
-    for _ in range(steps):
+    for i in range(steps):
         #tahn reparameterization trick - ensures adversarial image stays in range [0,1]
         x_adv = 0.5 * (torch.tanh(w) + 1)
 
         #Feed adversarial image into model
-        logits = model(x_adv)
+        output = model(x_adv)
         
-        #logit score for the target class
-        real = logits[0, target_class]
+        #Get predicted class
+        pred_class = output.argmax(dim=1).item()
+        final_output = output.detach().clone() 
 
+        #Check if the predicted class matches the target class
+        if pred_class == target_class:
+            if not success:
+                success = True
+                first_success_iter = i
+                first_success_output = output.detach().clone()
+            if break_early:
+                break
+
+        #logit score for the target class
+        real = output[0, target_class]
         #Gets highest logit scores among other classes
-        other = torch.max(logits[0, torch.arange(logits.shape[1]) != target_class])
+        other = torch.max(output[0, torch.arange(output.shape[1]) != target_class])
         
         if model.training:
             model.eval()  # Ensure deterministic behavior
@@ -56,7 +75,7 @@ def cw_attack(model:object, source_image: Tensor, target_class: int, lr: int = 0
     #returns final adversarial image
     perturbed_image = 0.5 * (torch.tanh(w) + 1).detach()
     
-    return perturbed_image
+    return perturbed_image, success, first_success_iter, first_success_output, final_output
     
 
 
