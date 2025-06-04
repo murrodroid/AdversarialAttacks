@@ -8,17 +8,33 @@ def pgd_attack(model, image, target_class, epsilon=0.3, alpha=0.01, max_iter=100
   target = torch.tensor([target_class], device=image.device)
   criterion = nn.CrossEntropyLoss()
   success = False
+
+  first_success_iter = None
+  first_success_output = None
+  final_output = None
+  
   for i in range(max_iter):
     adv.requires_grad = True
     output = model(adv)
     pred_class = output.argmax(dim=1).item()
+    
     if pred_class == target_class:
+      if not success:
+          first_success_iter = i
+          first_success_output = output.detach().clone()
       success = True
+      final_output = output.detach().clone()
       if break_early: break
+    
     loss = criterion(output, target)
     model.zero_grad()
     loss.backward()
+    
     adv = adv.detach() - alpha * torch.sign(adv.grad.data)
     eta = torch.clamp(adv - original, -epsilon, epsilon)
     adv = torch.clamp(original + eta, image.min(), image.max())
-  return adv, success
+
+    if i == max_iter - 1:
+        final_output = output.detach().clone()
+
+  return adv, success, first_success_iter, first_success_output, final_output
