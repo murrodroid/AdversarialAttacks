@@ -5,8 +5,8 @@ import numpy as np
 
 
 
-def fgsm_attack(model: object, image: Tensor, target_class: int, epsilon: float = 0.1, max_iters: int = 100, break_early: bool = False) -> Tensor:
-    perturbed_image = image.clone().detach().requires_grad_(True)
+def fgsm_attack(model: object, source_image: Tensor, target_class: int, epsilon: float = 0.1, max_iters: int = 100, break_early: bool = False) -> Tensor:
+    perturbed_image = source_image.clone().detach().requires_grad_(True)
     target = torch.tensor([target_class], device=perturbed_image.device)
     citerion = nn.CrossEntropyLoss()
     success = False
@@ -34,9 +34,9 @@ def fgsm_attack(model: object, image: Tensor, target_class: int, epsilon: float 
         
         with torch.no_grad():
             perturbed_image += epsilon * perturbed_image.grad.sign()
-            delta = perturbed_image - image
+            delta = perturbed_image - source_image
             delta = torch.clamp(delta, -epsilon * 10, epsilon * 10)  
-            perturbed_image = image + delta
+            perturbed_image = source_image + delta
         
         perturbed_image.requires_grad_(True)
 
