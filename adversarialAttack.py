@@ -13,6 +13,7 @@ from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
 from src.attacks.cw import cw_attack
 from src.utils.torch_util import getDevice
+from src.utils.randomness import set_seed
 
 
 class AdversarialAttacker:
@@ -107,11 +108,19 @@ def visualize_results(original_image, adversarial_image, orig_class, adv_class, 
     plt.axis('off')
     
     plt.subplot(1, 3, 3)
-    diff = np.array(adversarial_image) - np.array(original_image)
+    orig = np.array(original_image, dtype=np.float32)
+    adv  = np.array(adversarial_image, dtype=np.float32)
+    diff = adv - orig
+
+    plt.subplot(1, 3, 3)
+    orig = np.array(original_image, dtype=np.float32)
+    adv  = np.array(adversarial_image, dtype=np.float32)
+    diff = adv - orig
+    diff_gray = diff.mean(axis=2)
+    plt.imshow(diff_gray, cmap='gray', vmin=-255, vmax=255)
     plt.title("Difference")
-    plt.imshow(diff, cmap='bwr')
-    plt.colorbar()
-    plt.axis('off')
+    plt.axis("off")
+    cbar = plt.colorbar()
     
     plt.tight_layout()
     
@@ -132,23 +141,19 @@ def load_model(dataset):
 
 
 def main():
-    seed = 42
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    set_seed(1)
 
     parser = argparse.ArgumentParser(description='Generate adversarial examples for different datasets')
     parser.add_argument('--dataset', type=str, default='cifar10', choices=['mnist','cifar10'])
-    parser.add_argument('--source', type=int, default=0, help='Source class (0-9)')
-    parser.add_argument('--target', type=int, default=1, help='Target class (0-9)')
+    parser.add_argument('--source', type=int, default=2, help='Source class (0-9)')
+    parser.add_argument('--target', type=int, default=0, help='Target class (0-9)')
     parser.add_argument('--attack', type=str, default='fgsm', 
                         choices=['fgsm', 'pgd', 'deepfool', 'cw'],
                         help='Attack type')
-    parser.add_argument('--epsilon', type=float, default=0.1, help='Epsilon for FGSM/PGD attack')
+    parser.add_argument('--epsilon', type=float, default=0.01, help='Epsilon for FGSM/PGD attack')
     parser.add_argument('--alpha', type=float, default=0.05, help='Step size for PGD attack')
     parser.add_argument('--iterations', type=int, default=200, help='Max iterations')
-    parser.add_argument('--output', type=str, default=None, help='Output directory')
+    parser.add_argument('--output', type=str, default="output", help='Output directory')
     
     args = parser.parse_args()
     
