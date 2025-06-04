@@ -15,7 +15,7 @@ class PSNR:
 
         output of PSNR: Higher values indicate better quality; typically, values above 30 dB are acceptable. 
         '''
-        diff = torch.abs(self.source,self.manipulated)
+        diff = torch.abs(self.source - self.manipulated)
         diff = diff.float()
 
         sse = (diff**2).sum()
@@ -26,6 +26,6 @@ class PSNR:
             mse = sse / self.source.numel()
             psnr = 10.0 * torch.log10((255 * 255) / mse)
         
-        return psnr
+        return float(psnr)
     
 __all__ = ['PSNR']

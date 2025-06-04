@@ -6,7 +6,7 @@ class SSIM:
         self.source = source_image
         self.manipulated = manipulated_image
 
-    def create_gaussian_kernel(window_size: int, sigma: float, channels: int) -> torch.Tensor:
+    def create_gaussian_kernel(self, window_size: int, sigma: float, channels: int) -> torch.Tensor:
         coords = torch.arange(window_size).float() - (window_size - 1) / 2
         g = torch.exp(-(coords ** 2) / (2 * sigma ** 2))
         g /= g.sum()
