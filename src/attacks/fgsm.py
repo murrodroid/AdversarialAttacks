@@ -11,12 +11,21 @@ def fgsm_attack(model: object, image: Tensor, target_class: int, epsilon: float 
     citerion = nn.CrossEntropyLoss()
     success = False
 
+    first_success_iter = None
+    first_success_output = None
+    final_output = None
+
     for i in range(max_iters):
         output = model(perturbed_image)
         pred_class = output.argmax(dim=1).item()
         if pred_class == target_class:
+            if not success:
+                first_success_iter = i
+                first_success_output = output.detach().clone()
             success = True
+            
             if break_early:
+                final_output = output.detach().clone()
                 break
         
         loss = -citerion(output, target) 
@@ -30,6 +39,9 @@ def fgsm_attack(model: object, image: Tensor, target_class: int, epsilon: float 
             perturbed_image = image + delta
         
         perturbed_image.requires_grad_(True)
+
+        if i == max_iters - 1:
+            final_output = output.detach().clone()
     
-    return perturbed_image, success
+    return perturbed_image, success, first_success_iter, first_success_output, final_output
 
