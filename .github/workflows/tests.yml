@@ -44,7 +44,7 @@ jobs:
         
     - name: Test with unittest
       run: |
-        python -m unittest discover tests -p "*_test.py"
+        python -m unittest discover tests -p "test_*.py"
         
     - name: Display test results summary
       if: always()

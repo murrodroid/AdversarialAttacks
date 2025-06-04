@@ -14,23 +14,23 @@ class TestImageQualityAssessment(unittest.TestCase):
     perturbed_tensor = dataset.transform(bird_perturbed).unsqueeze(0)
 
     def test_psnr(self):
-        psnr = PSNR(self.original_tensor, self.perturbed_tensor)
-        result = psnr.evaluate()
+        psnr = PSNR()
+        result = psnr.evaluate(self.original_tensor, self.perturbed_tensor)
         self.assertAlmostEqual(result, 69.47459411621094, places=6)
 
     def test_psnr_full_similarity(self):
-        psnr = PSNR(self.original_tensor, self.original_tensor)
-        result = psnr.evaluate()
+        psnr = PSNR()
+        result = psnr.evaluate(self.original_tensor, self.original_tensor)
         self.assertEqual(result, 0)
 
     def test_ssim(self):
-        ssim = SSIM(self.original_tensor, self.perturbed_tensor)
-        result = ssim.evaluate(window_size=11, sigma=1.5)
+        ssim = SSIM()
+        result = ssim.evaluate(self.original_tensor, self.perturbed_tensor, window_size=11, sigma=1.5)
         self.assertAlmostEqual(result, 0.999845027923584, places=6)
 
     def test_ssim_full_similarity(self):
-        ssim = SSIM(self.original_tensor, self.original_tensor)
-        result = ssim.evaluate()
+        ssim = SSIM()
+        result = ssim.evaluate(self.original_tensor, self.original_tensor, window_size=11, sigma=1.5)
         self.assertEqual(result, 1)
 
 if __name__ == '__main__':
