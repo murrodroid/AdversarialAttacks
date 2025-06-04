@@ -14,6 +14,7 @@ import torchvision.transforms.functional as TF
 from src.datasets.cifar10 import Cifar10
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
+from src.attacks.cw import cw_attack
 
 from src.utils.torch_util import getDevice
 from src.utils.randomness import set_seed
@@ -27,7 +28,7 @@ AVAILABLE_MODELS = {
     ),
 }
 
-AVAILABLE_ATTACKS = {"fgsm": fgsm_attack, "pgd": pgd_attack}
+AVAILABLE_ATTACKS = {"fgsm": fgsm_attack, "pgd": pgd_attack, "cw": cw_attack}
 
 
 def load_model(model_name, device):
