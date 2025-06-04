@@ -1,13 +1,14 @@
-from src.iqa.select import select_iqa_method
+from src.iqa import *
 from src.utils.image import image_to_tensor
 import pandas as pd
+import torch
 
-def evaluate_image(source_image: str, attack_image: str, source_class: int, attack_class: int, metadata: pd.DataFrame = None, iqa_method: str = 'psnr') -> dict:
+def evaluate_image(source_image: torch.Tensor., attack_image: str, source_class: int, attack_class: int, metadata: pd.DataFrame = None, iqa_method: str = 'psnr') -> dict:
     '''
     This function evaluates the performance of an adversarial attack on a given image.
     inputs:
-        source_image: The path to the original image.
-        attack_image: The path to the adversarial image.
+        source_image:
+        attack_image:
         source_class: The true class of the original image.
         atack_class: The class given by the adversarial attack.
         iqa_method: The image quality assessment method to use. Options are 'ergas', 'psnr', 'rmse', 'sam', 'ssim'. Default is 'psnr'.
