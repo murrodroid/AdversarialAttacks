@@ -34,7 +34,7 @@ def cw_attack(model:object, image: Tensor, target_class: int, lr = int, steps = 
         real = logits[0, target_class]
 
         #Gets highest logit scores among other classes
-        other = torch.max(logits[0, torch.arange(logits.shape[1]) != y])
+        other = torch.max(logits[0, torch.arange(logits.shape[1]) != target_class])
         
         if model.training:
             model.eval()  # Ensure deterministic behavior
