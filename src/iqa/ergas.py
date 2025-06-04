@@ -23,3 +23,5 @@ class ERGAS:
         rel_sq = (rmse / mu) ** 2
         ergas = 100 * scale * torch.sqrt(rel_sq.mean()).item()
         return ergas
+
+__all__ = ['ERGAS']

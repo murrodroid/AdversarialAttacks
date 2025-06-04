@@ -19,3 +19,5 @@ class RMSE:
         mse_per_channel = diff_squared.mean(dim=(1, 2))
         rmse_per_channel = torch.sqrt(mse_per_channel)
         return rmse_per_channel
+    
+__all__ = ['RMSE']

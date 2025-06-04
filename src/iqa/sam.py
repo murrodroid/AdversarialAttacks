@@ -29,3 +29,4 @@ class SAM:
             angle_mean = angle_mean * 180.0 / math.pi
         return angle_mean.item()
 
+__all__ = ['SAM']

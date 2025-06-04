@@ -27,3 +27,5 @@ class PSNR:
             psnr = 10.0 * torch.log10((255 * 255) / mse)
         
         return psnr
+    
+__all__ = ['PSNR']

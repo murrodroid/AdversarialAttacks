@@ -43,3 +43,5 @@ class SSIM:
         sigma12 = F.conv2d(self.source * self.manipulated, window, padding=window_size // 2, groups=channels) - mu1_mu2
         ssim_map = ((2.0 * mu1_mu2 + C1) * (2.0 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
         return ssim_map.mean().item()
+
+__all__ = ['SSIM']
