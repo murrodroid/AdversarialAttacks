@@ -19,6 +19,8 @@ from src.attacks.cw import cw_attack
 from src.utils.torch_util import getDevice
 from src.utils.randomness import set_seed
 
+from src.iqa import *
+
 # --- Configuration ---
 AVAILABLE_DATASETS = {"cifar10": Cifar10}
 
@@ -101,6 +103,10 @@ def run_single_generation(config):
     set_seed(current_seed)
     device = torch.device(device_str)
 
+    psnr_evaluator = PSNR()
+    sim_evaluator = SSIM()
+    ergas_evaluator = ERGAS()
+
     os.makedirs(image_output_dir, exist_ok=True)
 
     try:
@@ -177,6 +183,14 @@ def run_single_generation(config):
                 elif attack_name == "pgd":
                     attack_kwargs["alpha"] = alpha
                     attack_kwargs["max_iter"] = iterations
+                elif attack_name == "cw":
+                    # CW doesn't use epsilon, alpha, or standard iterations
+                    attack_kwargs = {
+                        "lr": 0.01,  # Learning rate for Adam optimizer
+                        "steps": iterations,  # Number of optimization steps
+                        "c": 1.0,  # Balance between adversarial loss and perturbation
+                        "kappa": 0  # Confidence margin
+                    }
 
                 try:
                     perturbed, success, first_success_iter, first_success_output, final_output = attack_func(
@@ -193,6 +207,12 @@ def run_single_generation(config):
                     predicted_success = (adv_pred_class == target_class)
                     if predicted_success != success:
                         print(f"[Proc {process_id} Warning] Mismatch between attack success flag ({success}) and final prediction ({predicted_success}) for idx {dataset_index}, target {target_class}. Using prediction.")
+
+                    original_for_psnr = (original_tensor * 255).clamp(0, 255)
+                    perturbed_for_psnr = (perturbed * 255).clamp(0, 255)
+                    psnr_score = psnr_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
+                    ssim_score = sim_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
+                    ergas_score = ergas_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
 
                     adv_pil = tensor_to_pil(perturbed, dataset_instance)
 
@@ -222,6 +242,9 @@ def run_single_generation(config):
                         "final_prob_distribution": final_output,
                         "dataset_index": dataset_index,
                         "attack_successful": success,
+                        "psnr_score": psnr_score,
+                        "ssim_score": ssim_score,
+                        "ergas_score": ergas_score,
                         "adversarial_image_path": img_path,
                     }
                     metadata_results.append(metadata_row)
@@ -404,19 +427,19 @@ if __name__ == "__main__":
         type=float,
         default=[0.03],
         nargs="+",
-        help="Epsilon value(s) for perturbation magnitude (e.g., for FGSM, PGD).",
+        help="Epsilon value(s) for perturbation magnitude (e.g., for FGSM, PGD). Not used for CW attack.",
     )
     parser.add_argument(
         "--alpha",
         type=float,
-        default=0.01,
-        help="Step size alpha for iterative attacks like PGD (single value applies to all PGD runs).",
+        default=0.007,
+        help="Step size alpha for iterative attacks like PGD. Typically epsilon/iterations (single value applies to all PGD runs).",
     )
     parser.add_argument(
         "--iterations",
         type=int,
         default=40,
-        help="Number of iterations for iterative attacks (single value applies to all relevant attacks).",
+        help="Number of iterations for iterative attacks (applies to FGSM, PGD iterations, and CW steps).",
     )
     parser.add_argument(
         "--parallel",
