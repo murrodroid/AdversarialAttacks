@@ -31,7 +31,7 @@ AVAILABLE_MODELS = {
     "cifar10_resnet20": lambda: torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True)
 }
 
-AVAILABLE_ATTACKS = {"fgsm": fgsm_attack, "pgd": pgd_attack, "cw": cw_attack}
+AVAILABLE_ATTACKS = {"fgsm": fgsm_attack, "pgd": pgd_attack} #, "cw": cw_attack}
 
 
 def load_model(model_name, device):
@@ -419,7 +419,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_images",
         type=int,
-        default=1,
+        default=2,
         help="Number of original images per source class to generate attacks for.",
     )
     parser.add_argument(
