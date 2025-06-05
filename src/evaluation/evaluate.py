@@ -3,7 +3,7 @@ from src.utils.image import image_to_tensor
 import pandas as pd
 import torch
 
-def evaluate_image(source_image: torch.Tensor., attack_image: str, source_class: int, attack_class: int, metadata: pd.DataFrame = None, iqa_method: str = 'psnr') -> dict:
+def evaluate_image(source_image: torch.Tensor, attack_image: str, source_class: int, attack_class: int, metadata: pd.DataFrame = None, iqa_method: str = 'psnr') -> dict:
     '''
     This function evaluates the performance of an adversarial attack on a given image.
     inputs:
