@@ -137,9 +137,8 @@ def run_single_generation(config):
 
     for source_class in source_classes:
         try:
-            original_samples = dataset_instance.get_sample_from_class(
-                source_class, train=False, num_images=num_images_per_class
-            )
+            sample_indices = config["shared_indices"][source_class]
+            original_samples = [dataset_instance.get_by_index(idx, train=False) for idx in sample_indices]
         except Exception as e:
             print(
                 f"[Proc {process_id} Error] Failed getting samples for class {source_class}: {e}"
@@ -298,6 +297,12 @@ def run_pipeline(args):
             print(
                 f"Info: {num_gpus} GPUs detected, but only using {args.parallel} parallel processes."
             )
+    
+    dataset_instance = get_dataset_instance(args.dataset[0])
+    shared_samples = {}
+    for cls in range(10):
+        indices = dataset_instance.get_indices_from_class(cls, train=False, num_images=args.num_images)
+        shared_samples[cls] = indices
 
     param_combinations = list(
         itertools.product(
@@ -331,6 +336,7 @@ def run_pipeline(args):
             "device": device_str,
             "image_output_dir": args.image_dir,
             "process_id": i,
+            "shared_indices": shared_samples,
         }
         experiment_configs.append(config)
 
