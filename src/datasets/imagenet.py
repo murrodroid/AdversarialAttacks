@@ -46,6 +46,42 @@ def load_imagenet100():
 
 
 
+class ImageNet100(DatasetBase): 
+    def __init__(self, dataset_path='../data/imagenet100', split='train'): # dataset_path is now mandatory
+        self.dataset_root_path = dataset_path
+        self.split = split
+        
+        try:
+            full_ds_dict = DatasetDict.load_from_disk(self.dataset_root_path)
+            self.dataset = full_ds_dict[self.split]
+            print(f"Successfully loaded '{self.split}' split from {self.dataset_root_path}")
+        except Exception as e:
+            print(f"ERROR!: Make sure the dataset is downloaded using load_imagenet100 function and available at {self.dataset_root_path}")
+            self.dataset = None # Or raise error
+
+        self.transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+        ])
+
+        inv_mean = [-m/s for m, s in zip((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]
+        inv_std = [1/s for s in (0.229, 0.224, 0.225)]
+        self.inverse_transform = transforms.Compose([
+            transforms.Normalize(tuple(inv_mean), tuple(inv_std))
+        ])
+
+        # Retrieve label names from the dataset
+        self.labels = []
+        if self.dataset is not None and "label" in self.dataset.features:
+            label_info = self.dataset.features["label"]
+            if hasattr(label_info, "names"):
+                # ClassLabel type: use .names
+                self.labels = label_info.names
+            else:
+                # Otherwise, fetch unique values (numeric or string)
+                self.labels = list(set(self.dataset["label"]))
 
 
 if __name__ == "__main__":
