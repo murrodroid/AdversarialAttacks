@@ -22,9 +22,9 @@ def pgd_attack(model, image, target_class, epsilon=0.3, alpha=0.01, max_iter=100
     if pred_class == target_class:
       if not success:
           first_success_iter = i
-          first_success_output = probs.detach().clone().cpu().numpy().tolist()
+          first_success_output = probs.detach().clone().cpu().numpy().tolist()[0]
       success = True
-      final_output = probs.detach().clone().cpu().numpy().tolist()
+      final_output = probs.detach().clone().cpu().numpy().tolist()[0]
       if break_early: break
     
     loss = criterion(output, target)
@@ -36,6 +36,6 @@ def pgd_attack(model, image, target_class, epsilon=0.3, alpha=0.01, max_iter=100
     adv = torch.clamp(original + eta, image.min(), image.max())
 
     if i == max_iter - 1:
-        final_output = probs.detach().clone().cpu().numpy().tolist()
+        final_output = probs.detach().clone().cpu().numpy().tolist()[0]
 
   return adv, success, first_success_iter, first_success_output, final_output
