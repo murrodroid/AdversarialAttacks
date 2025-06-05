@@ -74,6 +74,10 @@ def cw_attack(model:object, source_image: Tensor, target_class: int, lr: int = 0
 
     #returns final adversarial image
     perturbed_image = 0.5 * (torch.tanh(w) + 1).detach()
+
+    # TODO: Find out why probabilities are nan
+    first_success_output = [1.0]
+    final_output = [1.0]
     
     return perturbed_image, success, first_success_iter, first_success_output, final_output
     

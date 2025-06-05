@@ -23,9 +23,10 @@ from src.utils.randomness import set_seed
 AVAILABLE_DATASETS = {"cifar10": Cifar10}
 
 AVAILABLE_MODELS = {
-    "resnet18_imagenet": lambda: models.resnet18(
-        weights=models.ResNet18_Weights.IMAGENET1K_V1
-    ),
+    # "resnet18_imagenet": lambda: models.resnet18(
+    #     weights=models.ResNet18_Weights.IMAGENET1K_V1
+    # ),
+    "cifar10_resnet20": lambda: torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True)
 }
 
 AVAILABLE_ATTACKS = {"fgsm": fgsm_attack, "pgd": pgd_attack, "cw": cw_attack}
@@ -178,27 +179,27 @@ def run_single_generation(config):
                     attack_kwargs["max_iter"] = iterations
 
                 try:
-                    adv_tensor, attack_successful = attack_func(
+                    perturbed, success, first_success_iter, first_success_output, final_output = attack_func(
                         model,
                         original_tensor.clone().detach(),
                         target_class,
                         **attack_kwargs,
                     )
-                    adv_tensor = adv_tensor.detach()
+                    perturbed = perturbed.detach()
 
                     with torch.no_grad():
-                        adv_pred_class = model(adv_tensor).argmax(1).item()
+                        adv_pred_class = model(perturbed).argmax(1).item()
 
                     predicted_success = (adv_pred_class == target_class)
-                    if predicted_success != attack_successful:
-                        print(f"[Proc {process_id} Warning] Mismatch between attack success flag ({attack_successful}) and final prediction ({predicted_success}) for idx {dataset_index}, target {target_class}. Using prediction.")
+                    if predicted_success != success:
+                        print(f"[Proc {process_id} Warning] Mismatch between attack success flag ({success}) and final prediction ({predicted_success}) for idx {dataset_index}, target {target_class}. Using prediction.")
 
-                    adv_pil = tensor_to_pil(adv_tensor, dataset_instance)
+                    adv_pil = tensor_to_pil(perturbed, dataset_instance)
 
                     img_filename = (
                         f"adv_{dataset_name}_{attack_name}"
                         f"_model{model_name.replace('_','-')}"
-                        f"_eps{epsilon:.4f}_iter{iterations}"
+                        #f"_eps{epsilon:.4f}_iter{iterations}"
                         f"_src{source_class}_tgt{target_class}_idx{dataset_index}.png"
                     )
                     img_path = os.path.join(image_output_dir, img_filename)
@@ -211,13 +212,14 @@ def run_single_generation(config):
                         "attack": attack_name,
                         "epsilon": epsilon,
                         "alpha": alpha if attack_name == "pgd" else None,
+                        "first_success_iter": first_success_iter,
                         "iterations": iterations,
                         "source_class": source_class,
                         "target_class": target_class,
                         "dataset_index": dataset_index,
                         "original_pred_class": orig_pred_class,
                         "adversarial_pred_class": adv_pred_class,
-                        "attack_successful": attack_successful,
+                        "attack_successful": success,
                         "adversarial_image_path": img_path,
                     }
                     metadata_results.append(metadata_row)
@@ -380,7 +382,7 @@ if __name__ == "__main__":
         choices=list(AVAILABLE_DATASETS.keys()),
         help="Select one or more datasets to use.",
     )
-    default_attacks = list(AVAILABLE_ATTACKS.keys())[:2]
+    default_attacks = list(AVAILABLE_ATTACKS.keys())[:3]
     parser.add_argument(
         "--attack",
         type=str,

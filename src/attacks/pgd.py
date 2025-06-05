@@ -16,14 +16,15 @@ def pgd_attack(model, image, target_class, epsilon=0.3, alpha=0.01, max_iter=100
   for i in range(max_iter):
     adv.requires_grad = True
     output = model(adv)
-    pred_class = output.argmax(dim=1).item()
+    probs = torch.softmax(output, dim=1).detach()
+    pred_class = probs.argmax(dim=1).item()
     
     if pred_class == target_class:
       if not success:
           first_success_iter = i
-          first_success_output = output.detach().clone()
+          first_success_output = probs.detach().clone().cpu().numpy().tolist()
       success = True
-      final_output = output.detach().clone()
+      final_output = probs.detach().clone().cpu().numpy().tolist()
       if break_early: break
     
     loss = criterion(output, target)
@@ -35,6 +36,6 @@ def pgd_attack(model, image, target_class, epsilon=0.3, alpha=0.01, max_iter=100
     adv = torch.clamp(original + eta, image.min(), image.max())
 
     if i == max_iter - 1:
-        final_output = output.detach().clone()
+        final_output = probs.detach().clone().cpu().numpy().tolist()
 
   return adv, success, first_success_iter, first_success_output, final_output
