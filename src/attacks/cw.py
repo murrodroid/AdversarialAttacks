@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch import Tensor
 import numpy as np
 
-def cw_attack(model:object, source_image: Tensor, target_class: int, lr: int = 0.001, steps: int = 100 , c: int = 1, kappa: int = 0, break_early: bool = False) -> Tensor:
+def cw_attack(model:object, source_image: Tensor, target_class: int, lr: float = 0.01, steps: int = 10, c: float = 1.0, kappa: int = 0, break_early: bool = False) -> Tensor:
     """
     c = constant controlling the importance of misclassification vs. invisibility.
     kappa is a confidence margin. Higher means more confident misclassification.
