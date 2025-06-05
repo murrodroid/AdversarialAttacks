@@ -58,7 +58,6 @@ p-unc = uncorrected p-value
 np2 = partial eta-squared (effect size)
 '''
 
-#Documentation: https://pingouin-stats.org/build/html/generated/pingouin.pairwise_tests.html
 #Perform Pairwise T-tests with Bonferroni correction
 pg.pairwise_tests(
     dv='image_quality',
