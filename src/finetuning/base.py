@@ -40,9 +40,10 @@ def _freeze_backbone(model, name):
         for p in model.head.parameters(): p.requires_grad = True
     return model
 
-def finetune(model, model_name, train_loader, val_loader, cfg: dict):
+def finetune(model, train_loader, val_loader, cfg: dict):
     train_cfg = cfg['training']
     wandb_cfg = cfg['wandb']
+    model_name = train_cfg['model_name']
     rank = int(os.environ["LOCAL_RANK"])
     model = _replace_head(model, model_name, train_cfg)
 
