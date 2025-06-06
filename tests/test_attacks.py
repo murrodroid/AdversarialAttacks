@@ -39,8 +39,7 @@ class TestAttackMethods(unittest.TestCase):
 
         cls.target_classes = [0, 1, 2] 
 
-    def test_fgsm_epsilon_bounds(self):
-        """Test that FGSM respects epsilon bounds."""
+    def test_fgsm_batch(self):
         epsilon = 0.01
         max_iters = 10
         break_early = True
@@ -89,7 +88,7 @@ class TestAttackMethods(unittest.TestCase):
                 msg=f"Final output for image {i} should sum to 1.0",
             )
 
-    def test_pgd_convergence(self):
+    def test_pgd_batch(self):
         """Test that PGD attack converges or reaches max iterations."""
         epsilon = 0.1
         alpha = 0.01
