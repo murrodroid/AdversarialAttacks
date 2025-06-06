@@ -41,33 +41,33 @@ def _freeze_backbone(model, name):
     return model
 
 def finetune(model, model_name, train_loader, val_loader, cfg: dict):
-    training = cfg['training']
-    wandbc = cfg['wandb']
+    train_cfg = cfg['training']
+    wandb_cfg = cfg['wandb']
     rank = int(os.environ["LOCAL_RANK"])
+    model = _replace_head(model, model_name, train_cfg)
     
     dist.init_process_group("nccl")
     torch.cuda.set_device(rank)
-
-    model = _replace_head(model, model_name, training)
-    params = filter(lambda p: p.requires_grad, model.parameters())
-    if not training["finetune_all_layers"]:
+    
+    if not train_cfg["finetune_all_layers"]:
         model = _freeze_backbone(model, model_name)
     
-    opt = _build_opt(model_name,params)
+    params = filter(lambda p: p.requires_grad, model.parameters())
+    opt = _build_opt(model_name,params,train_cfg)
 
     model = model.cuda() if torch.cuda.is_available() else AssertionError('cuda not available, aint no way we finetunin on cpu bruh')
     model = DDP(model, device_ids=[rank])
 
-    wandb.init(project=wandbc["project"], config=wandbc,
+    wandb.init(project=wandb_cfg["project"], config=wandb_cfg,
                mode="online" if rank == 0 else "disabled")
     
     criterion = nn.CrossEntropyLoss().cuda()
     
-    sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=training["epochs"])
+    sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=train_cfg["epochs"])
     scaler = GradScaler()
     best = 0.0
 
-    for epoch in range(training['epochs']):
+    for epoch in range(train_cfg['epochs']):
         train_loader.sampler.set_epoch(epoch)
         model.train()
 
@@ -100,6 +100,6 @@ def finetune(model, model_name, train_loader, val_loader, cfg: dict):
             if acc > best:
                 best = acc
                 torch.save(model.module.state_dict(),
-                           os.path.join(training["save_dir"], "best.pt"))
+                           os.path.join(train_cfg["save_dir"], "best.pt"))
     wandb.finish()
     dist.destroy_process_group()
