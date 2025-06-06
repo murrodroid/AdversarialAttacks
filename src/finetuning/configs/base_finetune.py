@@ -5,7 +5,7 @@ run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 #eksempel til resnet50 finetuning til imagenet100
 config = dict(
-    params = dict(
+    training = dict(
         model_name        = "resnet",
         output_dim        = 100,
         finetune_all_layers = False,
