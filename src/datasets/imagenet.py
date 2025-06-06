@@ -1,8 +1,13 @@
-import torchvision.transforms as transforms
+import torch
+from datasets import load_dataset
+
 import os
 from datasets import load_dataset, DatasetDict
 import shutil 
-from .dataset_base import DatasetBase
+from datasets import load_from_disk
+from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms as T
+
 
 # Downloading imagenet100 dataset from huggingface
 # saving it locally then to a folder in the git repository and deleting the temporary cache folder
@@ -44,47 +49,86 @@ def load_imagenet100():
     return final_dataset_path        
 
 
+class ImageNet100(Dataset):
+    def __init__(self, root_dir, train = False,validation = False):
+        """
+        Args:
+            root_dir (string): Directory with all the images.
+            train (bool): If True, load the training set.
+            validation (bool): If True, load the validation set.
+        """
+        self.root_dir = root_dir
+
+        split_name = 'train' if train else ('validation' if validation else 'test')
+        self.dire = os.path.join(self.root_dir, split_name)
+        self.dataset = load_from_disk(self.dire)
+
+        # self.transforms = transforms
+        self.transforms =  T.Compose([
+                                T.RandomResizedCrop(224),
+                                T.RandomHorizontalFlip(),
+                                T.ToTensor(),
+                                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                            ]) if train else T.Compose([
+                                                    T.Resize(256),
+                                                    T.CenterCrop(224),
+                                                    T.ToTensor(),
+                                                    T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                                                ])
 
 
-class ImageNet100(DatasetBase): 
-    def __init__(self, dataset_path='../data/imagenet100', split='train'): # dataset_path is now mandatory
-        self.dataset_root_path = dataset_path
-        self.split = split
-        
-        try:
-            full_ds_dict = DatasetDict.load_from_disk(self.dataset_root_path)
-            self.dataset = full_ds_dict[self.split]
-            print(f"Successfully loaded '{self.split}' split from {self.dataset_root_path}")
-        except Exception as e:
-            print(f"ERROR!: Make sure the dataset is downloaded using load_imagenet100 function and available at {self.dataset_root_path}")
-            self.dataset = None # Or raise error
-
-        self.transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-        ])
-
-        inv_mean = [-m/s for m, s in zip((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))]
-        inv_std = [1/s for s in (0.229, 0.224, 0.225)]
-        self.inverse_transform = transforms.Compose([
-            transforms.Normalize(tuple(inv_mean), tuple(inv_std))
-        ])
-
-        # Retrieve label names from the dataset
-        self.labels = []
-        if self.dataset is not None and "label" in self.dataset.features:
-            label_info = self.dataset.features["label"]
-            if hasattr(label_info, "names"):
-                # ClassLabel type: use .names
-                self.labels = label_info.names
-            else:
-                # Otherwise, fetch unique values (numeric or string)
-                self.labels = list(set(self.dataset["label"]))
+        self.num_classes = self.dataset.features['label'].num_classes
 
 
+    def __len__(self):
+        """
+        Returns the total number of samples in the dataset.
+        """
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        """
+        Fetches the sample at the given index and applies transforms.
+        """
+        # 5. Get a single item from the dataset. It's a dictionary.
+        # The default keys are 'image' and 'label'.
+        item = self.dataset[idx]
+        image = item['image']
+        label = item['label']
+
+        # 6. Apply transforms to the PIL image.
+        if self.transforms:
+            # Ensure image is RGB, as required by standard models
+            image = self.transforms(image.convert('RGB'))
+            
+        return image, torch.tensor(label, dtype=torch.long)
+
+
+# example use
 if __name__ == "__main__":
     local_dataset_path = load_imagenet100()
     print(f"\nDataset setup process finished. Final dataset location: {local_dataset_path}")
+
+    # Needed to locate the dataset directory   
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(script_dir)) 
+    data_directory = os.path.join(project_root,'src', 'data', 'imagenet100')
+    print(f"\nData directory for ImageNet100: {data_directory}")
+
+    train_dataset = ImageNet100(root_dir=data_directory,train=True)
+    val_dataset = ImageNet100(root_dir=data_directory, validation=True)
+    print(f"\nLength of training dataset object: {len(train_dataset)}")
+    print(f"\nLength of validation dataset object: {len(val_dataset)}")
+
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=4)
+    print("\nDataLoaders works")
+
+    # We want to test the getitem method for two samples
+    for i in range(2):
+        img, label = train_dataset[i]
+        print(f"Sample {i} from train dataset: Image shape: {img.shape}, Label: {label.item()}")
+    for i in range(2):
+        img, label = val_dataset[i]
+        print(f"Sample {i} from test dataset: Image shape: {img.shape}, Label: {label.item()}")
 

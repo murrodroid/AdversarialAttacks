@@ -1,58 +1,28 @@
 import numpy as np
 import torch
-import argparse
 import os
 import pandas as pd
 import itertools
-import random
-import torchvision.models as models
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
 from PIL import Image
 import torchvision.transforms.functional as TF
 
 from src.datasets.cifar10 import Cifar10
-from src.attacks.fgsm import fgsm_attack
-from src.attacks.pgd import pgd_attack
-from src.attacks.cw import cw_attack
-
-from src.utils.torch_util import getDevice
 from src.utils.randomness import set_seed
-
 from src.iqa import *
 
-# --- Configuration ---
-AVAILABLE_DATASETS = {"cifar10": Cifar10}
-
-AVAILABLE_MODELS = {
-    # "resnet18_imagenet": lambda: models.resnet18(
-    #     weights=models.ResNet18_Weights.IMAGENET1K_V1
-    # ),
-    "cifar10_resnet20": lambda: torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True)
-}
-
-AVAILABLE_ATTACKS = {"fgsm": fgsm_attack, "pgd": pgd_attack} #, "cw": cw_attack}
-
-
-def load_model(model_name, device):
-    """Loads the specified model onto the given device."""
-    if model_name not in AVAILABLE_MODELS:
-        raise ValueError(
-            f"Model '{model_name}' not recognized. Available: {list(AVAILABLE_MODELS.keys())}"
-        )
-    model = AVAILABLE_MODELS[model_name]()
-    model = model.to(device)
-    model.eval()
-    return model
-
-
-def get_dataset_instance(dataset_name):
-    """Gets an instance of the specified dataset class."""
-    if dataset_name not in AVAILABLE_DATASETS:
-        raise ValueError(
-            f"Dataset '{dataset_name}' not recognized. Available: {list(AVAILABLE_DATASETS.keys())}"
-        )
-    return AVAILABLE_DATASETS[dataset_name]()
+# Import configuration components
+from config import (
+    ModelRegistry,
+    DatasetRegistry,
+    AttackRegistry,
+    GenerationConfig,
+    AttackConfig,
+    create_argument_parser,
+    parse_args_to_config,
+    validate_configuration,
+)
 
 
 def tensor_to_pil(tensor, dataset_name):
@@ -83,7 +53,7 @@ def tensor_to_pil(tensor, dataset_name):
 
 def run_single_generation(config):
     """
-    Generates adversarial images for a single configuration and saves them.
+    Generates adversarial images for a single model-attack configuration using batch processing.
     Returns metadata about the generated images. Designed for multiprocessing.
     """
     model_name = config["model_name"]
@@ -96,7 +66,7 @@ def run_single_generation(config):
     base_seed = config["seed"]
     device_str = config["device"]
     image_output_dir = config["image_output_dir"]
-    process_id = config.get("process_id", 0)  # Get process ID for seeding
+    process_id = config.get("process_id", 0)
 
     current_seed = base_seed + process_id + hash(str(config)) % 10000
     set_seed(current_seed)
@@ -109,18 +79,15 @@ def run_single_generation(config):
     os.makedirs(image_output_dir, exist_ok=True)
 
     try:
-        dataset_instance = get_dataset_instance(dataset_name)
-        model = load_model(model_name, device)
+        dataset_instance = DatasetRegistry.get_dataset_instance(dataset_name)
+        model = ModelRegistry.load_model(model_name, device)
     except Exception as e:
         print(
             f"[Proc {process_id} Error] Failed to load model/dataset for config {config}: {e}"
         )
         return []
 
-    attack_func = AVAILABLE_ATTACKS.get(attack_name)
-    if not attack_func:
-        print(f"[Proc {process_id} Error] Attack '{attack_name}' not recognized.")
-        return []
+    attack_func = AttackRegistry.get_attack_function(attack_name)
 
     try:
         num_classes = len(dataset_instance.labels)
@@ -130,11 +97,10 @@ def run_single_generation(config):
         )
         num_classes = 10
 
-    source_classes = list(range(num_classes))
-    target_classes = list(range(num_classes))
-    metadata_results = []
+    # Collect all samples and their metadata for batch processing
+    batch_data = []
 
-    for source_class in source_classes:
+    for source_class in range(num_classes):
         try:
             sample_indices = config["shared_indices"][source_class]
             original_samples = [dataset_instance.get_by_index(idx, train=False) for idx in sample_indices]
@@ -171,191 +137,251 @@ def run_single_generation(config):
                 )
                 orig_pred_class = -1
 
-            for target_class in target_classes:
+            # Add all target classes for this sample
+            for target_class in range(num_classes):
                 if target_class == source_class:
                     continue
 
-                attack_kwargs = {"epsilon": epsilon}
-                if attack_name == "fgsm":
-                    attack_kwargs["max_iters"] = iterations
-                elif attack_name == "pgd":
-                    attack_kwargs["alpha"] = alpha
-                    attack_kwargs["max_iter"] = iterations
-                elif attack_name == "cw":
-                    # CW doesn't use epsilon, alpha, or standard iterations
-                    attack_kwargs = {
-                        "lr": 0.01,  # Learning rate for Adam optimizer
-                        "steps": iterations,  # Number of optimization steps
-                        "c": 1.0,  # Balance between adversarial loss and perturbation
-                        "kappa": 0  # Confidence margin
-                    }
-
-                try:
-                    perturbed, success, first_success_iter, first_success_output, final_output = attack_func(
-                        model,
-                        original_tensor.clone().detach(),
-                        target_class,
-                        **attack_kwargs,
-                    )
-                    perturbed = perturbed.detach()
-
-                    with torch.no_grad():
-                        adv_pred_class = model(perturbed).argmax(1).item()
-
-                    predicted_success = (adv_pred_class == target_class)
-                    if predicted_success != success:
-                        print(f"[Proc {process_id} Warning] Mismatch between attack success flag ({success}) and final prediction ({predicted_success}) for idx {dataset_index}, target {target_class}. Using prediction.")
-
-                    original_for_psnr = (original_tensor * 255).clamp(0, 255)
-                    perturbed_for_psnr = (perturbed * 255).clamp(0, 255)
-                    psnr_score = psnr_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
-                    ssim_score = sim_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
-                    ergas_score = ergas_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
-
-                    adv_pil = tensor_to_pil(perturbed, dataset_name)
-
-                    img_filename = (
-                        f"adv_{dataset_name}_{attack_name}"
-                        f"_model{model_name.replace('_','-')}"
-                        #f"_eps{epsilon:.4f}_iter{iterations}"
-                        f"_src{source_class}_tgt{target_class}_idx{dataset_index}.png"
-                    )
-                    img_path = os.path.join(image_output_dir, img_filename)
-
-                    adv_pil.save(img_path)
-
-                    metadata_row = {
-                        "model": model_name,
-                        #"dataset": dataset_name,
-                        "attack": attack_name,
-                        #"epsilon": epsilon,
-                        #"alpha": alpha if attack_name == "pgd" else None,
-                        "first_success_iter": first_success_iter,
-                        "iterations": iterations,
-                        "true_class": source_class,
+                batch_data.append(
+                    {
+                        "original_tensor": original_tensor.clone().detach().squeeze(0),
+                        "source_class": source_class,
                         "target_class": target_class,
-                        "original_pred_class": orig_pred_class,
-                        "adversarial_pred_class": adv_pred_class,
-                        "first_success_prob_distribution": first_success_output,
-                        "final_prob_distribution": final_output,
                         "dataset_index": dataset_index,
-                        "attack_successful": success,
-                        "psnr_score": psnr_score,
-                        "ssim_score": ssim_score,
-                        "ergas_score": ergas_score,
-                        "adversarial_image_path": img_path,
+                        "orig_pred_class": orig_pred_class,
                     }
-                    metadata_results.append(metadata_row)
+                )
 
-                except Exception as e:
-                    print(
-                        f"[Proc {process_id} Error] Failed during attack/saving for config {config}, idx {dataset_index}, target {target_class}: {e}"
-                    )
-                    metadata_results.append(
-                        {
-                            "model": model_name,
-                            "dataset": dataset_name,
-                            "attack": attack_name,
-                            "epsilon": epsilon,
-                            "alpha": alpha if attack_name == "pgd" else None,
-                            "iterations": iterations,
-                            "source_class": source_class,
-                            "target_class": target_class,
-                            "dataset_index": dataset_index,
-                            "original_pred_class": -1,
-                            "adversarial_pred_class": -1,
-                            "attack_successful": None,
-                            "adversarial_image_path": None,
-                            "error": str(e),
-                        }
-                    )
+    if not batch_data:
+        print(f"[Proc {process_id} Warning] No valid samples found for processing.")
+        return []
+
+    # Create batch tensors and target lists
+    batch_tensors = torch.stack([item["original_tensor"] for item in batch_data])
+    batch_targets = [item["target_class"] for item in batch_data]
+
+    # Set up attack parameters using AttackConfig
+    attack_config = AttackConfig(
+        name=attack_name, epsilon=epsilon, alpha=alpha, iterations=iterations
+    )
+    attack_kwargs = attack_config.get_attack_kwargs()
+    attack_kwargs["break_early"] = True
+
+    print(
+        f"[Proc {process_id}] Processing batch of {len(batch_data)} examples for {model_name} + {attack_name}"
+    )
+
+    try:
+        # Run batch attack
+        (
+            perturbed_batch,
+            success_list,
+            first_success_iter_list,
+            first_success_output_list,
+            final_output_list,
+        ) = attack_func(
+            model,
+            batch_tensors,
+            batch_targets,
+            **attack_kwargs,
+        )
+        perturbed_batch = perturbed_batch.detach()
+
+        # Get adversarial predictions for the entire batch
+        with torch.no_grad():
+            adv_pred_classes = model(perturbed_batch).argmax(1).cpu().numpy()
+
+    except Exception as e:
+        print(f"[Proc {process_id} Error] Failed during batch attack: {e}")
+        return []
+
+    metadata_results = []
+
+    # Process results for each image in the batch
+    for i, (
+        batch_item,
+        success,
+        first_success_iter,
+        first_success_output,
+        final_output,
+    ) in enumerate(
+        zip(
+            batch_data,
+            success_list,
+            first_success_iter_list,
+            first_success_output_list,
+            final_output_list,
+        )
+    ):
+        try:
+            source_class = batch_item["source_class"]
+            target_class = batch_item["target_class"]
+            dataset_index = batch_item["dataset_index"]
+            orig_pred_class = batch_item["orig_pred_class"]
+            original_tensor = batch_item["original_tensor"]
+            perturbed_tensor = perturbed_batch[i]
+            adv_pred_class = adv_pred_classes[i]
+
+            # Calculate quality metrics
+            original_for_psnr = (original_tensor * 255).clamp(0, 255)
+            perturbed_for_psnr = (perturbed_tensor * 255).clamp(0, 255)
+            psnr_score = psnr_evaluator.evaluate(
+                original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0)
+            )
+            ssim_score = sim_evaluator.evaluate(
+                original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0)
+            )
+            ergas_score = ergas_evaluator.evaluate(
+                original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0)
+            )
+
+            # Save adversarial image
+            adv_pil = tensor_to_pil(perturbed_tensor, dataset_name)
+            img_filename = (
+                f"adv_{dataset_name}_{attack_name}"
+                f"_model{model_name.replace('_','-')}"
+                f"_src{source_class}_tgt{target_class}_idx{dataset_index}.png"
+            )
+            img_path = os.path.join(image_output_dir, img_filename)
+            adv_pil.save(img_path)
+
+            # Create metadata row
+            metadata_row = {
+                "model": model_name,
+                "attack": attack_name,
+                "first_success_iter": first_success_iter if success else None,
+                "iterations": iterations,
+                "true_class": source_class,
+                "target_class": target_class,
+                "original_pred_class": orig_pred_class,
+                "adversarial_pred_class": int(adv_pred_class),
+                "first_success_prob_distribution": (
+                    first_success_output if success else None
+                ),
+                "final_prob_distribution": final_output,
+                "dataset_index": dataset_index,
+                "attack_successful": success,
+                "psnr_score": psnr_score,
+                "ssim_score": ssim_score,
+                "ergas_score": ergas_score,
+                "adversarial_image_path": img_path,
+            }
+            metadata_results.append(metadata_row)
+
+        except Exception as e:
+            print(f"[Proc {process_id} Error] Failed processing result {i}: {e}")
+            metadata_results.append(
+                {
+                    "model": model_name,
+                    "attack": attack_name,
+                    "iterations": iterations,
+                    "true_class": batch_item.get("source_class", -1),
+                    "target_class": batch_item.get("target_class", -1),
+                    "dataset_index": batch_item.get("dataset_index", -1),
+                    "original_pred_class": -1,
+                    "adversarial_pred_class": -1,
+                    "attack_successful": None,
+                    "adversarial_image_path": None,
+                    "error": str(e),
+                }
+            )
 
     del model
     if device_str == "cuda":
         torch.cuda.empty_cache()
 
+    print(
+        f"[Proc {process_id}] Completed batch processing: {len(metadata_results)} results"
+    )
     return metadata_results
 
 
-def run_pipeline(args):
-    """Sets up and runs the parallel image generation process."""
+def run_pipeline(config: GenerationConfig):
+    """Sets up and runs the parallel image generation process using GenerationConfig."""
 
-    if args.device:
-        device_str = args.device
-    else:
-        device_str = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Pipeline using device type: {device_str}")
+    print(f"Pipeline using device type: {config.device}")
 
-    if device_str == "cuda" and args.parallel > 1:
+    if config.device == "cuda" and config.parallel_processes > 1:
         num_gpus = torch.cuda.device_count()
-        if num_gpus < args.parallel:
+        if num_gpus < config.parallel_processes:
             print(
-                f"Warning: Requesting {args.parallel} parallel CUDA processes but only {num_gpus} GPU(s) detected. Processes might share GPUs, potentially causing slowdowns or memory issues."
+                f"Warning: Requesting {config.parallel_processes} parallel CUDA processes but only {num_gpus} GPU(s) detected. Processes might share GPUs, potentially causing slowdowns or memory issues."
             )
-        elif num_gpus > args.parallel:
+        elif num_gpus > config.parallel_processes:
             print(
-                f"Info: {num_gpus} GPUs detected, but only using {args.parallel} parallel processes."
+                f"Info: {num_gpus} GPUs detected, but only using {config.parallel_processes} parallel processes."
             )
-    
-    dataset_instance = get_dataset_instance(args.dataset[0])
+
+    dataset_instance = DatasetRegistry.get_dataset_instance(config.datasets[0])
     shared_samples = {}
     for cls in range(10):
-        indices = dataset_instance.get_indices_from_class(cls, train=False, num_images=args.num_images)
+        indices = dataset_instance.get_indices_from_class(
+            cls, train=False, num_images=config.num_images_per_class
+        )
         shared_samples[cls] = indices
 
+    # Create configurations for each model-attack-epsilon combination
     param_combinations = list(
         itertools.product(
-            args.model,
-            args.dataset,
-            args.attack,
-            args.epsilon,
-            # args.alpha,
-            # args.iterations,
-            # args.num_images,
-            # args.seed,
-            # args.device,
-            # args.image_dir,
-            # args.metadata_output,
+            config.models,
+            config.datasets,
+            config.attacks,
+            config.epsilons,
         )
     )
 
-    print(f"Generating {len(param_combinations)} images")
+    # Calculate total number of adversarial examples that will be generated
+    total_examples_per_config = (
+        config.num_images_per_class * 10 * 9
+    )  # num_images * num_classes * (num_classes - 1 targets)
+    total_examples = len(param_combinations) * total_examples_per_config
+    print(
+        f"Will generate {total_examples} adversarial examples across {len(param_combinations)} model-attack configurations"
+    )
+    print(
+        f"Each configuration processes {total_examples_per_config} examples in a single batch"
+    )
 
     experiment_configs = []
     for i, (model, dataset, attack, eps) in enumerate(param_combinations):
-        config = {
+        exp_config = {
             "model_name": model,
             "dataset_name": dataset,
             "attack_name": attack,
             "epsilon": eps,
-            "alpha": args.alpha,
-            "iterations": args.iterations,
-            "num_images_per_class": args.num_images,
-            "seed": args.seed,
-            "device": device_str,
-            "image_output_dir": args.image_dir,
+            "alpha": config.alpha,
+            "iterations": config.iterations,
+            "num_images_per_class": config.num_images_per_class,
+            "seed": config.seed,
+            "device": config.device,
+            "image_output_dir": config.image_output_dir,
             "process_id": i,
             "shared_indices": shared_samples,
         }
-        experiment_configs.append(config)
+        experiment_configs.append(exp_config)
 
     num_configs = len(experiment_configs)
-    print(f"Generated {num_configs} generation configurations.")
+    print(
+        f"Generated {num_configs} batch processing configurations (grouped by model + attack)."
+    )
     if not experiment_configs:
         print("No configurations to run. Exiting.")
         return
 
-    os.makedirs(args.image_dir, exist_ok=True)
-    print(f"Ensured base image output directory exists: {args.image_dir}")
+    os.makedirs(config.image_output_dir, exist_ok=True)
+    print(f"Ensured base image output directory exists: {config.image_output_dir}")
 
-    num_workers = min(args.parallel, num_configs, cpu_count())
-    print(f"Starting generation using {num_workers} parallel processes...")
+    num_workers = min(config.parallel_processes, num_configs, cpu_count())
+    print(f"Starting batch generation using {num_workers} parallel processes...")
+    print(
+        f"Each process will handle one model-attack configuration and process all examples for that configuration in a single batch."
+    )
 
     all_metadata = []
     with Pool(processes=num_workers) as pool:
         results_iterator = pool.imap(run_single_generation, experiment_configs)
         for metadata_list in tqdm(
-            results_iterator, total=num_configs, desc="Generating Images"
+            results_iterator, total=num_configs, desc="Processing Batches"
         ):
             if metadata_list:
                 all_metadata.extend(metadata_list)
@@ -365,129 +391,42 @@ def run_pipeline(args):
         return
 
     print(
-        f"\nCollected metadata for {len(all_metadata)} generated or attempted images."
+        f"\nCollected metadata for {len(all_metadata)} generated adversarial examples."
+    )
+    print(
+        f"Successfully processed {len([m for m in all_metadata if m.get('attack_successful')])} successful attacks."
     )
     metadata_df = pd.DataFrame(all_metadata)
 
-    if args.metadata_output:
-        output_dir = os.path.dirname(args.metadata_output)
+    if config.metadata_output_path:
+        output_dir = os.path.dirname(config.metadata_output_path)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
         try:
-            metadata_df.to_csv(args.metadata_output, index=False)
-            print(f"Metadata saved successfully to: {args.metadata_output}")
+            metadata_df.to_csv(config.metadata_output_path, index=False)
+            print(f"Metadata saved successfully to: {config.metadata_output_path}")
         except Exception as e:
-            print(f"Error saving metadata CSV to {args.metadata_output}: {e}")
+            print(f"Error saving metadata CSV to {config.metadata_output_path}: {e}")
             print("Displaying metadata instead:")
             print(metadata_df.head())
     else:
         print("\n--- Combined Metadata (Head) ---")
         print(metadata_df.head())
 
-    print(f"\nAdversarial images saved in directory: {args.image_dir}")
+    print(f"\nAdversarial images saved in directory: {config.image_output_dir}")
     print("Pipeline finished.")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Parallel Adversarial Image Generation Pipeline",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-
-    # --- Configuration Arguments ---
-    default_models = list(AVAILABLE_MODELS.keys())[:1]
-    parser.add_argument(
-        "--model",
-        type=str,
-        default=default_models,
-        nargs="+",
-        choices=list(AVAILABLE_MODELS.keys()),
-        help="Select one or more model architectures to use.",
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default=["cifar10"],
-        nargs="+",
-        choices=list(AVAILABLE_DATASETS.keys()),
-        help="Select one or more datasets to use.",
-    )
-    default_attacks = list(AVAILABLE_ATTACKS.keys())[:3]
-    parser.add_argument(
-        "--attack",
-        type=str,
-        default=default_attacks,
-        nargs="+",
-        choices=list(AVAILABLE_ATTACKS.keys()),
-        help="Select one or more attack methods.",
-    )
-    parser.add_argument(
-        "--num_images",
-        type=int,
-        default=2,
-        help="Number of original images per source class to generate attacks for.",
-    )
-    parser.add_argument(
-        "--epsilon",
-        type=float,
-        default=[0.03],
-        nargs="+",
-        help="Epsilon value(s) for perturbation magnitude (e.g., for FGSM, PGD). Not used for CW attack.",
-    )
-    parser.add_argument(
-        "--alpha",
-        type=float,
-        default=0.007,
-        help="Step size alpha for iterative attacks like PGD. Typically epsilon/iterations (single value applies to all PGD runs).",
-    )
-    parser.add_argument(
-        "--iterations",
-        type=int,
-        default=40,
-        help="Number of iterations for iterative attacks (applies to FGSM, PGD iterations, and CW steps).",
-    )
-    parser.add_argument(
-        "--parallel",
-        type=int,
-        default=max(1, cpu_count() // 2),
-        help="Number of parallel processes to launch.",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default=None,
-        choices=["cpu", "cuda"],
-        help="Force device usage (cpu or cuda). If None, defaults to cuda if available, else cpu.",
-    )
-    parser.add_argument(
-        "--image_dir",
-        type=str,
-        default="./generated_adversarial_images",
-        help="Directory where generated adversarial images will be saved.",
-    )
-    parser.add_argument(
-        "--metadata_output",
-        type=str,
-        default="results/generation_metadata.csv",
-        help="Path to save the CSV file containing metadata about generated images.",
-    )
-    parser.add_argument(
-        "--seed", type=int, default=42, help="Base random seed for reproducibility."
-    )
-
+    # Use the argument parser from config module
+    parser = create_argument_parser()
     args = parser.parse_args()
 
-    if args.parallel <= 0:
-        print("Warning: --parallel must be positive. Setting to 1.")
-        args.parallel = 1
+    # Convert arguments to GenerationConfig
+    config = parse_args_to_config(args)
 
-    if not args.model:
-        raise ValueError(
-            "No models available or specified. Please add models to AVAILABLE_MODELS or use the --model argument."
-        )
-    if not args.attack:
-        raise ValueError(
-            "No attacks available or specified. Please add attacks to AVAILABLE_ATTACKS or use the --attack argument."
-        )
+    # Validate the configuration
+    validate_configuration(config)
 
-    run_pipeline(args)
+    # Run the pipeline with the validated configuration
+    run_pipeline(config)
