@@ -21,11 +21,11 @@ class TestAttackMethods(unittest.TestCase):
         set_seed(42)  # For reproducible tests
         cls.device = getDevice()
         cls.bird_original = Image.open("tests/assets/bird_original.png")
-        cls.dataset = Cifar10()
+        cls.dataset = Cifar10(download=False)
         cls.model = load_model("cifar10")
         cls.model.to(cls.device)
         cls.model.eval()
-        
+
         # Get a test image
         cls.test_tensor = cls.dataset.transform(cls.bird_original).unsqueeze(0).to(cls.device)
         cls.source_class = 2
@@ -37,7 +37,7 @@ class TestAttackMethods(unittest.TestCase):
         max_iters = 10
         break_early = True
         original = self.test_tensor.clone()
-        
+
         _, success, first_success_iter, first_success_output, final_output = fgsm_attack(
             self.model, original, self.target_class, epsilon=epsilon, max_iters=max_iters, break_early=break_early
         )
@@ -48,11 +48,10 @@ class TestAttackMethods(unittest.TestCase):
         self.assertTrue(all(isinstance(x, float) for x in final_output))
 
         self.assertTrue(success, "FGSM attack should be successful")
-        
+
         self.assertAlmostEqual(sum(first_success_output), 1.0, places=6, msg="First success output should sum to 1.0")
 
         self.assertAlmostEqual(sum(final_output), 1.0, places=6, msg="Final output should sum to 1.0")
-
 
     def test_pgd_convergence(self):
         """Test that PGD attack converges or reaches max iterations."""
@@ -77,7 +76,6 @@ class TestAttackMethods(unittest.TestCase):
         self.assertAlmostEqual(sum(first_success_output), 1.0, places=6, msg="First success output should sum to 1.0")
 
         self.assertAlmostEqual(sum(final_output), 1.0, places=6, msg="Final output should sum to 1.0")
-
 
     def test_cw_attack(self):
         """Test that CW attack converges or reaches max iterations."""
