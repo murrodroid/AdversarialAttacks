@@ -45,7 +45,10 @@ def finetune(model, model_name, train_loader, val_loader, cfg: dict):
     wandb_cfg = cfg['wandb']
     rank = int(os.environ["LOCAL_RANK"])
     model = _replace_head(model, model_name, train_cfg)
-    
+
+    if not torch.cuda.is_available():
+        raise RuntimeError('cuda not available, aint no way we finetunin on cpu bruh')
+
     dist.init_process_group("nccl")
     torch.cuda.set_device(rank)
     
@@ -55,27 +58,33 @@ def finetune(model, model_name, train_loader, val_loader, cfg: dict):
     params = filter(lambda p: p.requires_grad, model.parameters())
     opt = _build_opt(model_name,params,train_cfg)
 
-    model = model.cuda() if torch.cuda.is_available() else AssertionError('cuda not available, aint no way we finetunin on cpu bruh')
+    model = model.cuda()
     model = DDP(model, device_ids=[rank])
 
-    wandb.init(project=wandb_cfg["project"], config=wandb_cfg,
-               mode="online" if rank == 0 else "disabled")
+    run = wandb.init(
+               project=wandb_cfg["project"],
+               entity=wandb_cfg.get('entity'), 
+               mode="online" if rank == 0 else "disabled",
+               config=train_cfg)
     
     criterion = nn.CrossEntropyLoss().cuda()
-    
     sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=train_cfg["epochs"])
-    scaler = GradScaler()
-    best = 0.0
+    use_amp = train_cfg.get('amp',True)
+    scaler = GradScaler(enabled=use_amp)
 
+    best = 0.0
     for epoch in range(train_cfg['epochs']):
-        train_loader.sampler.set_epoch(epoch)
+        sampler = getattr(train_loader, "sampler", None)
+        if isinstance(sampler, torch.utils.data.distributed.DistributedSampler):
+            sampler.set_epoch(epoch)
+
         model.train()
 
         # training
         for x, y in train_loader:
             x, y = x.cuda(non_blocking=True), y.cuda(non_blocking=True)
             opt.zero_grad(set_to_none=True)
-            with autocast():
+            with autocast(enabled=use_amp):
                 loss = criterion(model(x), y)
             scaler.scale(loss).backward()
             scaler.step(opt)
@@ -88,18 +97,20 @@ def finetune(model, model_name, train_loader, val_loader, cfg: dict):
         with torch.no_grad():
             for x, y in val_loader:
                 x, y = x.cuda(non_blocking=True), y.cuda(non_blocking=True)
-                with autocast():
+                with autocast(enabled=use_amp):
                     pred = model(x).argmax(1)
                 correct += pred.eq(y).sum().item()
                 total += y.size(0)
         acc = correct / total
 
-        # stats & save best model
+        # wandb stats & save best model
         if rank == 0:
             wandb.log({"epoch": epoch, "val_acc": acc})
             if acc > best:
                 best = acc
-                torch.save(model.module.state_dict(),
-                           os.path.join(train_cfg["save_dir"], "best.pt"))
-    wandb.finish()
+                os.makedirs(train_cfg["save_dir"], exist_ok=True)
+                state = model.module.state_dict() if isinstance(model, DDP) else model.state_dict()
+                torch.save(state, os.path.join(train_cfg["save_dir"], "best.pt"))
+    if rank == 0:
+        wandb.finish()
     dist.destroy_process_group()
