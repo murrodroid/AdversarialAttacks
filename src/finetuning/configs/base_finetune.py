@@ -11,7 +11,7 @@ config = dict(
         finetune_all_layers = False,
 
         epochs            = 128,
-        batch_size        = 256,
+        batch_size        = 64,
         learning_rate     = 0.001,
         weight_decay      = 1e-4,
         lr_scheduler      = "cosine",
@@ -20,8 +20,7 @@ config = dict(
         amp               = True,
         save_dir          = Path("checkpoints") / f"resnet50-{run_id}",
 
-        train_root        = Path("/data/imagenet100/train"),
-        val_root          = Path("/data/imagenet100/validation"),
+        dataset_root        = Path("/data/imagenet100"),
     ),
     wandb = dict(
         project = "adversarialAttacks",
@@ -30,8 +29,8 @@ config = dict(
     )
 )
 
-run_name  = f"{config['model_name']}_{run_id}"
-runs_root   = Path("finetuning/base_finetune")     # top-level folder
+run_name  = f"{config['training']['model_name']}_{run_id}"
+runs_root   = Path("finetune_results/base_finetune")     # top-level folder
 run_dir     = runs_root / run_name          
 ckpt_dir    = run_dir / "checkpoints"
 reports_dir = run_dir / "reports"

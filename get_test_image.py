@@ -7,6 +7,8 @@ from PIL import Image
 import argparse
 import os
 
+from src.finetuning.dataloaders import create_imagenet100_loaders
+
 def get_mnist_loader(batch_size=1, train=True):
     transform = transforms.Compose([
         transforms.ToTensor(),
