@@ -217,8 +217,8 @@ class TestAttackMethods(unittest.TestCase):
         c = 1
         kappa = 0.0
 
-        original = self.test_tensor_unnorm[0:1]
-        target_class = self.target_classes[0]
+        original = self.test_tensor_unnorm
+        target_classes = self.target_classes
 
         (
             perturbed_images,
@@ -229,7 +229,7 @@ class TestAttackMethods(unittest.TestCase):
         ) = cw_attack(
             self.model,
             original,
-            target_class,
+            target_classes,
             lr=lr,
             steps=max_iter,
             c=c,
@@ -238,17 +238,40 @@ class TestAttackMethods(unittest.TestCase):
         )
 
         self._save_perturbed_images(
-            perturbed_images, "cw", ["bird"], apply_inverse_transform=False
+            perturbed_images, "cw", apply_inverse_transform=False
         )
 
-        self.assertIsInstance(success, bool)
-        if success and first_success_iter is not None:
-            self.assertIsInstance(first_success_iter, int)
-        if success and first_success_output is not None:
-            self.assertTrue(all(isinstance(x, float) for x in first_success_output))
+        self.assertIsInstance(success, list)
+        self.assertIsInstance(first_success_iter, list)
+        self.assertIsInstance(first_success_output, list)
+        self.assertIsInstance(final_output, list)
 
-        if final_output is not None:
-            self.assertTrue(all(isinstance(x, float) for x in final_output))
+        self.assertEqual(len(success), 3)
+        self.assertEqual(len(first_success_iter), 3)
+        self.assertEqual(len(first_success_output), 3)
+        self.assertEqual(len(final_output), 3)
+
+        for i in range(3):
+            self.assertIsInstance(success[i], bool)
+            if success[i]:
+                self.assertIsInstance(first_success_iter[i], int)
+                self.assertTrue(
+                    all(isinstance(x, float) for x in first_success_output[i])
+                )
+                self.assertAlmostEqual(
+                    sum(first_success_output[i]),
+                    1.0,
+                    places=6,
+                    msg=f"First success output for image {i} should sum to 1.0",
+                )
+
+            self.assertTrue(all(isinstance(x, float) for x in final_output[i]))
+            self.assertAlmostEqual(
+                sum(final_output[i]),
+                1.0,
+                places=6,
+                msg=f"Final output for image {i} should sum to 1.0",
+            )
 
 
 if __name__ == "__main__":
