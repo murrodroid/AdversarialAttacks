@@ -30,7 +30,7 @@ config = dict(
 )
 
 run_name  = f"{config['training']['model_name']}_{run_id}"
-runs_root   = Path("finetuning/base_finetune")     # top-level folder
+runs_root   = Path("finetune_results/base_finetune")     # top-level folder
 run_dir     = runs_root / run_name          
 ckpt_dir    = run_dir / "checkpoints"
 reports_dir = run_dir / "reports"

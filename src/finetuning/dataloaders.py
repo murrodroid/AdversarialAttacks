@@ -1,14 +1,10 @@
-import sys, pathlib
-ROOT = pathlib.Path(__file__).resolve().parents[1]   # …/src
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from ..datasets.imagenet import ImageNet100
+from .configs.base_finetune import config
 
 from torch.utils.data import DataLoader, DistributedSampler
 import torch.distributed as dist
 from torchvision.models import (
     ResNet50_Weights, MobileNet_V3_Large_Weights, Swin_T_Weights)
-from datasets.imagenet import ImageNet100
-from finetuning.configs.base_finetune import config
 
 train_cfg = config['training']
 
@@ -27,8 +23,8 @@ def create_imagenet100_loaders(model_name: str,
     rank = dist.get_rank()        if dist.is_initialized() else 0
 
     weights     = _BACKBONE_WEIGHTS[model_name]
-    tfm_train   = weights.transforms(train=True)
-    tfm_val     = weights.transforms(train=False)
+    tfm_train   = weights.transforms(training=True)
+    tfm_val     = weights.transforms(training=False)
 
     ds_train = ImageNet100(dataset_dir, split="train")
     ds_val   = ImageNet100(dataset_dir, split="validation")
