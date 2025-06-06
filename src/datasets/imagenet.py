@@ -1,11 +1,8 @@
 import torch
-from datasets import load_dataset
-
 import os
-from datasets import load_dataset, DatasetDict
 import shutil 
-from datasets import load_from_disk
-from torch.utils.data import Dataset, DataLoader
+from datasets import load_from_disk,load_dataset,DatasetDict
+from torch.utils.data import Dataset, DataLoader, DistributedSampler
 import torchvision.transforms as T
 
 
@@ -103,6 +100,62 @@ class ImageNet100(Dataset):
             
         return image, torch.tensor(label, dtype=torch.long)
 
+
+def create_imagenet100_loaders(root_dir: str,
+                               batch_size: int,
+                               workers: int = 8):
+    """
+    Returns (train_loader, val_loader) for ImageNet100.
+    Automatically wraps in DistributedSampler if DDP is active.
+    """
+    world_size = (
+        torch.distributed.get_world_size()
+        if torch.distributed.is_available() and torch.distributed.is_initialized()
+        else 1
+    )
+    rank = (
+        torch.distributed.get_rank()
+        if torch.distributed.is_available() and torch.distributed.is_initialized()
+        else 0
+    )
+
+    # Instantiate datasets
+    train_ds = ImageNet100(root_dir, train=True, validation=False)
+    val_ds = ImageNet100(root_dir, train=False, validation=True)
+
+    # Create samplers (for DDP) or None (for single-GPU)
+    if world_size > 1:
+        train_sampler = DistributedSampler(train_ds, num_replicas=world_size,
+                                           rank=rank, shuffle=True)
+        val_sampler = DistributedSampler(val_ds, num_replicas=world_size,
+                                         rank=rank, shuffle=False)
+    else:
+        train_sampler = None
+        val_sampler = None
+
+    per_gpu_bs = batch_size // world_size
+
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=per_gpu_bs,
+        sampler=train_sampler,
+        shuffle=(train_sampler is None),
+        num_workers=workers,
+        pin_memory=True,
+        drop_last=True,
+    )
+
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=per_gpu_bs,
+        sampler=val_sampler,
+        shuffle=False,
+        num_workers=workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+
+    return train_loader, val_loader
 
 # example use
 if __name__ == "__main__":
