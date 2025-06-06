@@ -21,13 +21,14 @@ class TestAttackMethods(unittest.TestCase):
         set_seed(42)  # For reproducible tests
         cls.device = getDevice()
         cls.bird_original = Image.open("tests/assets/bird_original.png")
-        cls.dataset = Cifar10(download=False)
         cls.model = load_model("cifar10")
         cls.model.to(cls.device)
         cls.model.eval()
 
         # Get a test image
-        cls.test_tensor = cls.dataset.transform(cls.bird_original).unsqueeze(0).to(cls.device)
+        cls.test_tensor = (
+            Cifar10.transforms(cls.bird_original).unsqueeze(0).to(cls.device)
+        )
         cls.source_class = 2
         cls.target_class = 0
 

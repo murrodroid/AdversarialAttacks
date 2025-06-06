@@ -22,11 +22,12 @@ class AdversarialAttacker:
         self.device = device
         self.model.to(device)
         self.model.eval()
+        self.dataset_name = dataset
 
         if dataset == "mnist":
-            self.dataset = Cifar10()
+            self._dataset_instance = Cifar10()
         elif dataset == "cifar10":
-            self.dataset = Cifar10()
+            self._dataset_instance = Cifar10()
         else:
             raise ValueError("Dataset not supported")
 
@@ -34,12 +35,12 @@ class AdversarialAttacker:
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image.astype(np.uint8))
 
-        tensor = self.dataset.transform(image).unsqueeze(0).to(self.device)
+        tensor = Cifar10.transforms(image).unsqueeze(0).to(self.device)
         return tensor
 
     def postprocess_image(self, tensor):
         tensor = tensor.squeeze(0).detach().cpu()
-        tensor = self.dataset.inverse_transform(tensor)
+        tensor = Cifar10.inverse_transforms(tensor)
         tensor = torch.clamp(tensor, 0, 1)
 
         # Convert to PIL image
@@ -68,7 +69,9 @@ class AdversarialAttacker:
         tensor_image = tensor_image.to(self.device)
 
         orig_class, orig_conf = self.predict(tensor_image)
-        print(f"Original image classified as {self.dataset.get_class_name(orig_class)} ({orig_class}) with {orig_conf:.4f} confidence")
+        print(
+            f"Original image classified as {self._dataset_instance.get_class_name(orig_class)} ({orig_class}) with {orig_conf:.4f} confidence"
+        )
 
         success = False
         if attack_type.lower() == 'fgsm':
@@ -106,10 +109,14 @@ class AdversarialAttacker:
         else:
             raise ValueError(f"Unknown attack type: {attack_type}")
 
-        print(f"Creating attack image using {attack_type} targeting class {target_class} ({self.dataset.get_class_name(target_class)})...")
+        print(
+            f"Creating attack image using {attack_type} targeting class {target_class} ({self._dataset_instance.get_class_name(target_class)})..."
+        )
 
         adv_class, adv_conf = self.predict(perturbed)
-        print(f"Adversarial image classified as {self.dataset.get_class_name(adv_class)} ({adv_class}) with {adv_conf:.4f} confidence")
+        print(
+            f"Adversarial image classified as {self._dataset_instance.get_class_name(adv_class)} ({adv_class}) with {adv_conf:.4f} confidence"
+        )
         print(f"Attack success reported by function: {success}")
 
         orig_img = self.postprocess_image(tensor_image)
@@ -185,7 +192,9 @@ def main():
 
     attacker = AdversarialAttacker(model, args.dataset)
 
-    sample_dict = attacker.dataset.get_sample_from_class(args.source, train=False, num_images=1)[0]
+    sample_dict = attacker._dataset_instance.get_sample_from_class(
+        args.source, train=False, num_images=1
+    )[0]
     image_tensor = sample_dict['tensor'] 
 
     attack_kwargs = { 'epsilon': args.epsilon }
@@ -200,11 +209,19 @@ def main():
     )
 
     print(f"\n--- Attack Summary ---")
-    print(f"Source Class: {attacker.dataset.get_class_name(args.source)} ({args.source})")
-    print(f"Target Class: {attacker.dataset.get_class_name(args.target)} ({args.target})")
+    print(
+        f"Source Class: {attacker._dataset_instance.get_class_name(args.source)} ({args.source})"
+    )
+    print(
+        f"Target Class: {attacker._dataset_instance.get_class_name(args.target)} ({args.target})"
+    )
     print(f"Attack Type: {args.attack.upper()}")
-    print(f"Original Prediction: {attacker.dataset.get_class_name(orig_class)} ({orig_class})")
-    print(f"Adversarial Prediction: {attacker.dataset.get_class_name(adv_class)} ({adv_class})")
+    print(
+        f"Original Prediction: {attacker._dataset_instance.get_class_name(orig_class)} ({orig_class})"
+    )
+    print(
+        f"Adversarial Prediction: {attacker._dataset_instance.get_class_name(adv_class)} ({adv_class})"
+    )
     print(f"Attack Successful (Target Reached): {success_flag}")
     print(f"----------------------\n")
 
@@ -224,8 +241,8 @@ def main():
 
     print(orig_class, adv_class)
 
-    orig_class_name = attacker.dataset.get_class_name(orig_class)
-    adv_class_name = attacker.dataset.get_class_name(adv_class)
+    orig_class_name = attacker._dataset_instance.get_class_name(orig_class)
+    adv_class_name = attacker._dataset_instance.get_class_name(adv_class)
     visualize_results(orig_img, adv_img, orig_class_name, adv_class_name, viz_path)
 
 

@@ -55,7 +55,7 @@ def get_dataset_instance(dataset_name):
     return AVAILABLE_DATASETS[dataset_name]()
 
 
-def tensor_to_pil(tensor, dataset_instance):
+def tensor_to_pil(tensor, dataset_name):
     """
     Converts a tensor (potentially normalized) back to a PIL Image.
     Assumes tensor is [B, C, H, W] or [C, H, W].
@@ -65,9 +65,8 @@ def tensor_to_pil(tensor, dataset_instance):
     tensor = tensor.detach().cpu()
 
     try:
-        tensor = dataset_instance.inverse_transform(tensor)
-    except AttributeError:
-        pass
+        if dataset_name == "cifar10":
+            tensor = Cifar10.inverse_transforms(tensor)
     except Exception as e:
         print(f"Warning: Error during inverse_transform: {e}. Clamping tensor.")
 
@@ -213,7 +212,7 @@ def run_single_generation(config):
                     ssim_score = sim_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
                     ergas_score = ergas_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
 
-                    adv_pil = tensor_to_pil(perturbed, dataset_instance)
+                    adv_pil = tensor_to_pil(perturbed, dataset_name)
 
                     img_filename = (
                         f"adv_{dataset_name}_{attack_name}"

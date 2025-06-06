@@ -7,11 +7,8 @@ from src.datasets.cifar10 import Cifar10
 class TestImageQualityAssessment(unittest.TestCase):
     bird_original = Image.open("tests/assets/bird_original.png")
     bird_perturbed = Image.open("tests/assets/bird_perturbed.png")
-
-    dataset = Cifar10()
-
-    original_tensor = dataset.transform(bird_original).unsqueeze(0)
-    perturbed_tensor = dataset.transform(bird_perturbed).unsqueeze(0)
+    original_tensor = Cifar10.transforms(bird_original).unsqueeze(0)
+    perturbed_tensor = Cifar10.transforms(bird_perturbed).unsqueeze(0)
 
     def test_psnr(self):
         psnr = PSNR()
