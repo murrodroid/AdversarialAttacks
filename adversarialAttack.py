@@ -4,8 +4,6 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import argparse
 import os
-import random
-import torchvision.models as models
 
 from src.datasets.cifar10 import Cifar10
 
@@ -73,41 +71,38 @@ class AdversarialAttacker:
             f"Original image classified as {self._dataset_instance.get_class_name(orig_class)} ({orig_class}) with {orig_conf:.4f} confidence"
         )
 
-        success = False
+        target_class_list = (
+            [target_class] if not isinstance(target_class, list) else target_class
+        )
+
         if attack_type.lower() == 'fgsm':
             (
                 perturbed,
-                success,
-                first_success_iter,
-                first_success_output,
-                final_output,
-            ) = fgsm_attack(self.model, tensor_image, target_class, **kwargs)
+                success_list,
+                first_success_iter_list,
+                first_success_output_list,
+                final_output_list,
+            ) = fgsm_attack(self.model, tensor_image, target_class_list, **kwargs)
         elif attack_type.lower() == 'pgd':
             (
                 perturbed,
-                success,
-                first_success_iter,
-                first_success_output,
-                final_output,
-            ) = pgd_attack(self.model, tensor_image, target_class, **kwargs)
-        elif attack_type.lower() == 'deepfool':
-            (
-                perturbed,
-                success,
-                first_success_iter,
-                first_success_output,
-                final_output,
-            ) = self.deepfool_attack(tensor_image, target_class, **kwargs)
+                success_list,
+                first_success_iter_list,
+                first_success_output_list,
+                final_output_list,
+            ) = pgd_attack(self.model, tensor_image, target_class_list, **kwargs)
         elif attack_type.lower() in ['cw', 'carlini_wagner']:
             (
                 perturbed,
-                success,
-                first_success_iter,
-                first_success_output,
-                final_output,
-            ) = cw_attack(self.model, tensor_image, target_class, **kwargs)
+                success_list,
+                first_success_iter_list,
+                first_success_output_list,
+                final_output_list,
+            ) = cw_attack(self.model, tensor_image, target_class_list, **kwargs)
         else:
             raise ValueError(f"Unknown attack type: {attack_type}")
+
+        success = success_list[0]
 
         print(
             f"Creating attack image using {attack_type} targeting class {target_class} ({self._dataset_instance.get_class_name(target_class)})..."
