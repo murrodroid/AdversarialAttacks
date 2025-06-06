@@ -8,7 +8,7 @@ def fgsm_attack(model: object, source_image: Tensor, target_class: list, epsilon
     perturbed_image = source_image.clone().detach().requires_grad_(True)
     target = torch.tensor(target_class, device=perturbed_image.device)
     criterion = nn.CrossEntropyLoss()
-    
+
     B = source_image.shape[0]
     success = [False] * B
     first_success_iter = [None] * B
@@ -24,9 +24,11 @@ def fgsm_attack(model: object, source_image: Tensor, target_class: list, epsilon
             if pred_classes[j].item() == target[j].item():
                 if not success[j]:
                     first_success_iter[j] = i
-                    first_success_output[j] = probs[j].detach().clone().cpu().numpy().tolist()[0]
+                    first_success_output[j] = (
+                        probs[j].detach().clone().cpu().numpy().tolist()
+                    )
                 success[j] = True
-        
+
         if break_early and all(success):
                 final_output = [probs[j].detach().clone().cpu().numpy().tolist() for j in range(B)]
                 break
