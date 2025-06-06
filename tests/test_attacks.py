@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image
 import tempfile
 import os
+import torchvision.transforms as transforms
 
 from src.datasets.cifar10 import Cifar10
 from src.attacks.fgsm import fgsm_attack
@@ -37,23 +38,83 @@ class TestAttackMethods(unittest.TestCase):
             cls.device
         )
 
-        cls.target_classes = [0, 1, 2] 
+        to_tensor_only = transforms.ToTensor()
+        bird_tensor_unnorm = to_tensor_only(cls.bird_original).unsqueeze(0)
+        ship_tensor_unnorm = to_tensor_only(cls.ship_original).unsqueeze(0)
+        frog_tensor_unnorm = to_tensor_only(cls.frog_original).unsqueeze(0)
 
-    def test_fgsm_batch(self):
+        cls.test_tensor_unnorm = torch.cat(
+            [bird_tensor_unnorm, ship_tensor_unnorm, frog_tensor_unnorm], dim=0
+        ).to(cls.device)
+
+        cls.target_classes = [0, 1, 2]
+        cls.image_labels = ["bird", "ship", "frog"]
+
+        os.makedirs("tests/results", exist_ok=True)
+
+    def _save_perturbed_images(
+        self, perturbed_tensor, attack_name, labels=None, apply_inverse_transform=True
+    ):
+        """Save perturbed images to tests/results/"""
+        if labels is None:
+            labels = self.image_labels
+
+        if perturbed_tensor.dim() == 4:  # Batched [B, C, H, W]
+            batch_size = perturbed_tensor.shape[0]
+            for i in range(batch_size):
+                if i < len(labels):
+                    img_tensor = perturbed_tensor[i]
+
+                    if apply_inverse_transform:
+                        img_tensor = Cifar10.inverse_transforms(img_tensor)
+
+                    img_tensor = torch.clamp(img_tensor, 0, 1)  # Ensure valid range
+
+                    img_np = img_tensor.permute(1, 2, 0).detach().cpu().numpy()
+                    img_np = (img_np * 255).astype(np.uint8)
+                    img_pil = Image.fromarray(img_np)
+
+                    filename = f"tests/results/{labels[i]}_{attack_name}.png"
+                    img_pil.save(filename)
+        else:  # Single image
+            img_tensor = perturbed_tensor.squeeze(0)
+
+            if apply_inverse_transform:
+                img_tensor = Cifar10.inverse_transforms(img_tensor)
+
+            img_tensor = torch.clamp(img_tensor, 0, 1)  # Ensure valid range
+
+            img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
+            img_np = (img_np * 255).astype(np.uint8)
+            img_pil = Image.fromarray(img_np)
+
+            filename = f"tests/results/{labels[0]}_{attack_name}.png"
+            img_pil.save(filename)
+
+    def test_fgsm_epsilon_bounds(self):
+        """Test that FGSM respects epsilon bounds."""
         epsilon = 0.01
         max_iters = 10
         break_early = True
         original = self.test_tensor.clone()
 
-        _, success, first_success_iter, first_success_output, final_output = (
-            fgsm_attack(
-                self.model,
-                original,
-                self.target_classes,
-                epsilon=epsilon,
-                max_iters=max_iters,
-                break_early=break_early,
-            )
+        (
+            perturbed_images,
+            success,
+            first_success_iter,
+            first_success_output,
+            final_output,
+        ) = fgsm_attack(
+            self.model,
+            original,
+            self.target_classes,
+            epsilon=epsilon,
+            max_iters=max_iters,
+            break_early=break_early,
+        )
+
+        self._save_perturbed_images(
+            perturbed_images, "fgsm", apply_inverse_transform=True
         )
 
         self.assertIsInstance(success, list)
@@ -88,7 +149,7 @@ class TestAttackMethods(unittest.TestCase):
                 msg=f"Final output for image {i} should sum to 1.0",
             )
 
-    def test_pgd_batch(self):
+    def test_pgd_convergence(self):
         """Test that PGD attack converges or reaches max iterations."""
         epsilon = 0.1
         alpha = 0.01
@@ -96,7 +157,13 @@ class TestAttackMethods(unittest.TestCase):
         break_early = True
 
         original = self.test_tensor.clone()
-        _, success, first_success_iter, first_success_output, final_output = pgd_attack(
+        (
+            perturbed_images,
+            success,
+            first_success_iter,
+            first_success_output,
+            final_output,
+        ) = pgd_attack(
             self.model,
             original,
             self.target_classes,
@@ -104,6 +171,10 @@ class TestAttackMethods(unittest.TestCase):
             alpha=alpha,
             max_iter=max_iter,
             break_early=break_early,
+        )
+
+        self._save_perturbed_images(
+            perturbed_images, "pgd", apply_inverse_transform=True
         )
 
         self.assertIsInstance(success, list)
@@ -146,10 +217,16 @@ class TestAttackMethods(unittest.TestCase):
         c = 1
         kappa = 0.0
 
-        original = self.test_tensor[0:1]
+        original = self.test_tensor_unnorm[0:1]
         target_class = self.target_classes[0]
 
-        _, success, first_success_iter, first_success_output, final_output = cw_attack(
+        (
+            perturbed_images,
+            success,
+            first_success_iter,
+            first_success_output,
+            final_output,
+        ) = cw_attack(
             self.model,
             original,
             target_class,
@@ -158,6 +235,10 @@ class TestAttackMethods(unittest.TestCase):
             c=c,
             kappa=kappa,
             break_early=break_early,
+        )
+
+        self._save_perturbed_images(
+            perturbed_images, "cw", ["bird"], apply_inverse_transform=False
         )
 
         self.assertIsInstance(success, bool)
@@ -170,5 +251,5 @@ class TestAttackMethods(unittest.TestCase):
             self.assertTrue(all(isinstance(x, float) for x in final_output))
 
 
-if __name__ == '__main__':
-    unittest.main() 
+if __name__ == "__main__":
+    unittest.main()
