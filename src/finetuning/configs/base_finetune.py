@@ -20,8 +20,8 @@ config = dict(
         amp               = True,
         save_dir          = Path("checkpoints") / f"resnet50-{run_id}",
 
-        train_root        = Path("/datasets/imagenet/train"),
-        val_root          = Path("/datasets/imagenet/val"),
+        train_root        = Path("/data/imagenet100/train"),
+        val_root          = Path("/data/imagenet100/validation"),
     ),
     wandb = dict(
         project = "adversarialAttacks",
