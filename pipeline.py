@@ -83,7 +83,7 @@ def tensor_to_pil(tensor, dataset_name):
 
 def run_single_generation(config):
     """
-    Generates adversarial images for a single configuration and saves them.
+    Generates adversarial images for a single model-attack configuration using batch processing.
     Returns metadata about the generated images. Designed for multiprocessing.
     """
     model_name = config["model_name"]
@@ -96,7 +96,7 @@ def run_single_generation(config):
     base_seed = config["seed"]
     device_str = config["device"]
     image_output_dir = config["image_output_dir"]
-    process_id = config.get("process_id", 0)  # Get process ID for seeding
+    process_id = config.get("process_id", 0)
 
     current_seed = base_seed + process_id + hash(str(config)) % 10000
     set_seed(current_seed)
@@ -130,11 +130,10 @@ def run_single_generation(config):
         )
         num_classes = 10
 
-    source_classes = list(range(num_classes))
-    target_classes = list(range(num_classes))
-    metadata_results = []
+    # Collect all samples and their metadata for batch processing
+    batch_data = []
 
-    for source_class in source_classes:
+    for source_class in range(num_classes):
         try:
             sample_indices = config["shared_indices"][source_class]
             original_samples = [dataset_instance.get_by_index(idx, train=False) for idx in sample_indices]
@@ -171,109 +170,172 @@ def run_single_generation(config):
                 )
                 orig_pred_class = -1
 
-            for target_class in target_classes:
+            # Add all target classes for this sample
+            for target_class in range(num_classes):
                 if target_class == source_class:
                     continue
 
-                attack_kwargs = {"epsilon": epsilon}
-                if attack_name == "fgsm":
-                    attack_kwargs["max_iters"] = iterations
-                elif attack_name == "pgd":
-                    attack_kwargs["alpha"] = alpha
-                    attack_kwargs["max_iter"] = iterations
-                elif attack_name == "cw":
-                    # CW doesn't use epsilon, alpha, or standard iterations
-                    attack_kwargs = {
-                        "lr": 0.01,  # Learning rate for Adam optimizer
-                        "steps": iterations,  # Number of optimization steps
-                        "c": 1.0,  # Balance between adversarial loss and perturbation
-                        "kappa": 0  # Confidence margin
-                    }
-
-                try:
-                    perturbed, success, first_success_iter, first_success_output, final_output = attack_func(
-                        model,
-                        original_tensor.clone().detach(),
-                        target_class,
-                        **attack_kwargs,
-                    )
-                    perturbed = perturbed.detach()
-
-                    with torch.no_grad():
-                        adv_pred_class = model(perturbed).argmax(1).item()
-
-                    predicted_success = (adv_pred_class == target_class)
-                    if predicted_success != success:
-                        print(f"[Proc {process_id} Warning] Mismatch between attack success flag ({success}) and final prediction ({predicted_success}) for idx {dataset_index}, target {target_class}. Using prediction.")
-
-                    original_for_psnr = (original_tensor * 255).clamp(0, 255)
-                    perturbed_for_psnr = (perturbed * 255).clamp(0, 255)
-                    psnr_score = psnr_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
-                    ssim_score = sim_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
-                    ergas_score = ergas_evaluator.evaluate(original_for_psnr, perturbed_for_psnr)
-
-                    adv_pil = tensor_to_pil(perturbed, dataset_name)
-
-                    img_filename = (
-                        f"adv_{dataset_name}_{attack_name}"
-                        f"_model{model_name.replace('_','-')}"
-                        #f"_eps{epsilon:.4f}_iter{iterations}"
-                        f"_src{source_class}_tgt{target_class}_idx{dataset_index}.png"
-                    )
-                    img_path = os.path.join(image_output_dir, img_filename)
-
-                    adv_pil.save(img_path)
-
-                    metadata_row = {
-                        "model": model_name,
-                        #"dataset": dataset_name,
-                        "attack": attack_name,
-                        #"epsilon": epsilon,
-                        #"alpha": alpha if attack_name == "pgd" else None,
-                        "first_success_iter": first_success_iter,
-                        "iterations": iterations,
-                        "true_class": source_class,
+                batch_data.append(
+                    {
+                        "original_tensor": original_tensor.clone().detach().squeeze(0),
+                        "source_class": source_class,
                         "target_class": target_class,
-                        "original_pred_class": orig_pred_class,
-                        "adversarial_pred_class": adv_pred_class,
-                        "first_success_prob_distribution": first_success_output,
-                        "final_prob_distribution": final_output,
                         "dataset_index": dataset_index,
-                        "attack_successful": success,
-                        "psnr_score": psnr_score,
-                        "ssim_score": ssim_score,
-                        "ergas_score": ergas_score,
-                        "adversarial_image_path": img_path,
+                        "orig_pred_class": orig_pred_class,
                     }
-                    metadata_results.append(metadata_row)
+                )
 
-                except Exception as e:
-                    print(
-                        f"[Proc {process_id} Error] Failed during attack/saving for config {config}, idx {dataset_index}, target {target_class}: {e}"
-                    )
-                    metadata_results.append(
-                        {
-                            "model": model_name,
-                            "dataset": dataset_name,
-                            "attack": attack_name,
-                            "epsilon": epsilon,
-                            "alpha": alpha if attack_name == "pgd" else None,
-                            "iterations": iterations,
-                            "source_class": source_class,
-                            "target_class": target_class,
-                            "dataset_index": dataset_index,
-                            "original_pred_class": -1,
-                            "adversarial_pred_class": -1,
-                            "attack_successful": None,
-                            "adversarial_image_path": None,
-                            "error": str(e),
-                        }
-                    )
+    if not batch_data:
+        print(f"[Proc {process_id} Warning] No valid samples found for processing.")
+        return []
+
+    # Create batch tensors and target lists
+    batch_tensors = torch.stack([item["original_tensor"] for item in batch_data])
+    batch_targets = [item["target_class"] for item in batch_data]
+
+    # Set up attack parameters
+    attack_kwargs = {"epsilon": epsilon, "break_early": True}
+    if attack_name == "fgsm":
+        attack_kwargs["max_iters"] = iterations
+    elif attack_name == "pgd":
+        attack_kwargs["alpha"] = alpha
+        attack_kwargs["max_iter"] = iterations
+    elif attack_name == "cw":
+        # CW doesn't use epsilon
+        attack_kwargs = {
+            "lr": 0.01,
+            "steps": iterations,
+            "c": 1.0,
+            "kappa": 0,
+            "break_early": True,
+        }
+
+    print(
+        f"[Proc {process_id}] Processing batch of {len(batch_data)} examples for {model_name} + {attack_name}"
+    )
+
+    try:
+        # Run batch attack
+        (
+            perturbed_batch,
+            success_list,
+            first_success_iter_list,
+            first_success_output_list,
+            final_output_list,
+        ) = attack_func(
+            model,
+            batch_tensors,
+            batch_targets,
+            **attack_kwargs,
+        )
+        perturbed_batch = perturbed_batch.detach()
+
+        # Get adversarial predictions for the entire batch
+        with torch.no_grad():
+            adv_pred_classes = model(perturbed_batch).argmax(1).cpu().numpy()
+
+    except Exception as e:
+        print(f"[Proc {process_id} Error] Failed during batch attack: {e}")
+        return []
+
+    metadata_results = []
+
+    # Process results for each image in the batch
+    for i, (
+        batch_item,
+        success,
+        first_success_iter,
+        first_success_output,
+        final_output,
+    ) in enumerate(
+        zip(
+            batch_data,
+            success_list,
+            first_success_iter_list,
+            first_success_output_list,
+            final_output_list,
+        )
+    ):
+        try:
+            source_class = batch_item["source_class"]
+            target_class = batch_item["target_class"]
+            dataset_index = batch_item["dataset_index"]
+            orig_pred_class = batch_item["orig_pred_class"]
+            original_tensor = batch_item["original_tensor"]
+            perturbed_tensor = perturbed_batch[i]
+            adv_pred_class = adv_pred_classes[i]
+
+            # Calculate quality metrics
+            original_for_psnr = (original_tensor * 255).clamp(0, 255)
+            perturbed_for_psnr = (perturbed_tensor * 255).clamp(0, 255)
+            psnr_score = psnr_evaluator.evaluate(
+                original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0)
+            )
+            ssim_score = sim_evaluator.evaluate(
+                original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0)
+            )
+            ergas_score = ergas_evaluator.evaluate(
+                original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0)
+            )
+
+            # Save adversarial image
+            adv_pil = tensor_to_pil(perturbed_tensor, dataset_name)
+            img_filename = (
+                f"adv_{dataset_name}_{attack_name}"
+                f"_model{model_name.replace('_','-')}"
+                f"_src{source_class}_tgt{target_class}_idx{dataset_index}.png"
+            )
+            img_path = os.path.join(image_output_dir, img_filename)
+            adv_pil.save(img_path)
+
+            # Create metadata row
+            metadata_row = {
+                "model": model_name,
+                "attack": attack_name,
+                "first_success_iter": first_success_iter if success else None,
+                "iterations": iterations,
+                "true_class": source_class,
+                "target_class": target_class,
+                "original_pred_class": orig_pred_class,
+                "adversarial_pred_class": int(adv_pred_class),
+                "first_success_prob_distribution": (
+                    first_success_output if success else None
+                ),
+                "final_prob_distribution": final_output,
+                "dataset_index": dataset_index,
+                "attack_successful": success,
+                "psnr_score": psnr_score,
+                "ssim_score": ssim_score,
+                "ergas_score": ergas_score,
+                "adversarial_image_path": img_path,
+            }
+            metadata_results.append(metadata_row)
+
+        except Exception as e:
+            print(f"[Proc {process_id} Error] Failed processing result {i}: {e}")
+            metadata_results.append(
+                {
+                    "model": model_name,
+                    "attack": attack_name,
+                    "iterations": iterations,
+                    "true_class": batch_item.get("source_class", -1),
+                    "target_class": batch_item.get("target_class", -1),
+                    "dataset_index": batch_item.get("dataset_index", -1),
+                    "original_pred_class": -1,
+                    "adversarial_pred_class": -1,
+                    "attack_successful": None,
+                    "adversarial_image_path": None,
+                    "error": str(e),
+                }
+            )
 
     del model
     if device_str == "cuda":
         torch.cuda.empty_cache()
 
+    print(
+        f"[Proc {process_id}] Completed batch processing: {len(metadata_results)} results"
+    )
     return metadata_results
 
 
@@ -296,30 +358,35 @@ def run_pipeline(args):
             print(
                 f"Info: {num_gpus} GPUs detected, but only using {args.parallel} parallel processes."
             )
-    
+
     dataset_instance = get_dataset_instance(args.dataset[0])
     shared_samples = {}
     for cls in range(10):
         indices = dataset_instance.get_indices_from_class(cls, train=False, num_images=args.num_images)
         shared_samples[cls] = indices
 
+    # Create configurations for each model-attack-epsilon combination
+    # Each configuration will process ALL examples for that combination in a single batch
     param_combinations = list(
         itertools.product(
             args.model,
             args.dataset,
             args.attack,
             args.epsilon,
-            # args.alpha,
-            # args.iterations,
-            # args.num_images,
-            # args.seed,
-            # args.device,
-            # args.image_dir,
-            # args.metadata_output,
         )
     )
 
-    print(f"Generating {len(param_combinations)} images")
+    # Calculate total number of adversarial examples that will be generated
+    total_examples_per_config = (
+        args.num_images * 10 * 9
+    )  # num_images * num_classes * (num_classes - 1 targets)
+    total_examples = len(param_combinations) * total_examples_per_config
+    print(
+        f"Will generate {total_examples} adversarial examples across {len(param_combinations)} model-attack configurations"
+    )
+    print(
+        f"Each configuration processes {total_examples_per_config} examples in a single batch"
+    )
 
     experiment_configs = []
     for i, (model, dataset, attack, eps) in enumerate(param_combinations):
@@ -340,7 +407,9 @@ def run_pipeline(args):
         experiment_configs.append(config)
 
     num_configs = len(experiment_configs)
-    print(f"Generated {num_configs} generation configurations.")
+    print(
+        f"Generated {num_configs} batch processing configurations (grouped by model + attack)."
+    )
     if not experiment_configs:
         print("No configurations to run. Exiting.")
         return
@@ -349,13 +418,16 @@ def run_pipeline(args):
     print(f"Ensured base image output directory exists: {args.image_dir}")
 
     num_workers = min(args.parallel, num_configs, cpu_count())
-    print(f"Starting generation using {num_workers} parallel processes...")
+    print(f"Starting batch generation using {num_workers} parallel processes...")
+    print(
+        f"Each process will handle one model-attack configuration and process all examples for that configuration in a single batch."
+    )
 
     all_metadata = []
     with Pool(processes=num_workers) as pool:
         results_iterator = pool.imap(run_single_generation, experiment_configs)
         for metadata_list in tqdm(
-            results_iterator, total=num_configs, desc="Generating Images"
+            results_iterator, total=num_configs, desc="Processing Batches"
         ):
             if metadata_list:
                 all_metadata.extend(metadata_list)
@@ -365,7 +437,10 @@ def run_pipeline(args):
         return
 
     print(
-        f"\nCollected metadata for {len(all_metadata)} generated or attempted images."
+        f"\nCollected metadata for {len(all_metadata)} generated adversarial examples."
+    )
+    print(
+        f"Successfully processed {len([m for m in all_metadata if m.get('attack_successful')])} successful attacks."
     )
     metadata_df = pd.DataFrame(all_metadata)
 
