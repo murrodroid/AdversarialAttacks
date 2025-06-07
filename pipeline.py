@@ -1,15 +1,12 @@
-import numpy as np
 import torch
 import os
 import pandas as pd
 import itertools
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
-from PIL import Image
-import torchvision.transforms.functional as TF
 
-from src.datasets.cifar10 import Cifar10
 from src.utils.randomness import set_seed
+from src.utils.torch_util import tensor_to_pil
 from src.iqa import *
 
 # Import configuration components
@@ -23,32 +20,6 @@ from config import (
     parse_args_to_config,
     validate_configuration,
 )
-
-
-def tensor_to_pil(tensor, dataset_name):
-    """
-    Converts a tensor (potentially normalized) back to a PIL Image.
-    Assumes tensor is [B, C, H, W] or [C, H, W].
-    """
-    if tensor.dim() == 4:
-        tensor = tensor.squeeze(0)
-    tensor = tensor.detach().cpu()
-
-    try:
-        if dataset_name == "cifar10":
-            tensor = Cifar10.inverse_transforms(tensor)
-    except Exception as e:
-        print(f"Warning: Error during inverse_transform: {e}. Clamping tensor.")
-
-    tensor = torch.clamp(tensor, 0, 1)
-
-    try:
-        pil_image = TF.to_pil_image(tensor)
-    except Exception as e:
-        print(f"Error converting tensor to PIL image: {e}")
-        pil_image = Image.new("RGB", (tensor.shape[2], tensor.shape[1]), color="black")
-
-    return pil_image
 
 
 def run_single_generation(config):
