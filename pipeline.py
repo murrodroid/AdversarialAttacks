@@ -4,6 +4,7 @@ import pandas as pd
 import itertools
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
+import time
 
 from src.utils.randomness import set_seed
 from src.utils.torch_util import tensor_to_pil
@@ -53,9 +54,7 @@ def run_single_generation(config):
         dataset_instance = DatasetRegistry.get_dataset_instance(dataset_name)
         model = ModelRegistry.load_model(model_name, device)
     except Exception as e:
-        print(
-            f"[Proc {process_id} Error] Failed to load model/dataset for config {config}: {e}"
-        )
+        print(f"[Proc {process_id} Error] Failed to load model/dataset for config {config}: {e}")
         return []
 
     attack_func = AttackRegistry.get_attack_function(attack_name)
@@ -63,9 +62,7 @@ def run_single_generation(config):
     try:
         num_classes = len(dataset_instance.labels)
     except AttributeError:
-        print(
-            f"Warning: Dataset {dataset_name} has no 'labels' attribute. Assuming 10 classes."
-        )
+        print(f"Warning: Dataset {dataset_name} has no 'labels' attribute. Assuming 10 classes.")
         num_classes = 10
 
     # Collect all samples and their metadata for batch processing
@@ -73,26 +70,17 @@ def run_single_generation(config):
 
     for source_class in range(num_classes):
         try:
-            sample_indices = config["shared_indices"][source_class]
-            original_samples = [dataset_instance.get_by_index(idx, train=False) for idx in sample_indices]
+            samples = config["shared_images"][source_class]
         except Exception as e:
-            print(
-                f"[Proc {process_id} Error] Failed getting samples for class {source_class}: {e}"
-            )
+            print(f"[Proc {process_id} Error] Failed getting samples for class {source_class}: {e}")
             continue
 
-        if not original_samples:
+        if not samples:
             continue
 
-        for sample in original_samples:
-            if (
-                not isinstance(sample, dict)
-                or "index" not in sample
-                or "tensor" not in sample
-            ):
-                print(
-                    f"[Proc {process_id} Warning] Skipping invalid sample format for source class {source_class}."
-                )
+        for sample in samples:
+            if not isinstance(sample, dict) or "index" not in sample or "tensor" not in sample:
+                print(f"[Proc {process_id} Warning] Skipping invalid sample format for source class {source_class}.")
                 continue
 
             original_tensor_cpu = sample["tensor"]
@@ -103,9 +91,7 @@ def run_single_generation(config):
                 with torch.no_grad():
                     orig_pred_class = model(original_tensor).argmax(1).item()
             except Exception as e:
-                print(
-                    f"[Proc {process_id} Warning] Failed original prediction for idx {dataset_index}: {e}"
-                )
+                print(f"[Proc {process_id} Warning] Failed original prediction for idx {dataset_index}: {e}")
                 orig_pred_class = -1
 
             # Add all target classes for this sample
@@ -132,15 +118,11 @@ def run_single_generation(config):
     batch_targets = [item["target_class"] for item in batch_data]
 
     # Set up attack parameters using AttackConfig
-    attack_config = AttackConfig(
-        name=attack_name, epsilon=epsilon, alpha=alpha, iterations=iterations
-    )
+    attack_config = AttackConfig(name=attack_name, epsilon=epsilon, alpha=alpha, iterations=iterations)
     attack_kwargs = attack_config.get_attack_kwargs()
     attack_kwargs["break_early"] = True
 
-    print(
-        f"[Proc {process_id}] Processing batch of {len(batch_data)} examples for {model_name} + {attack_name}"
-    )
+    print(f"[Proc {process_id}] Processing batch of {len(batch_data)} examples for {model_name} + {attack_name}")
 
     try:
         # Run batch attack
@@ -196,21 +178,15 @@ def run_single_generation(config):
             # Calculate quality metrics
             original_for_psnr = (original_tensor * 255).clamp(0, 255)
             perturbed_for_psnr = (perturbed_tensor * 255).clamp(0, 255)
-            psnr_score = psnr_evaluator.evaluate(
-                original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0)
-            )
-            ssim_score = sim_evaluator.evaluate(
-                original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0)
-            )
-            ergas_score = ergas_evaluator.evaluate(
-                original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0)
-            )
+            psnr_score = psnr_evaluator.evaluate(original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0))
+            ssim_score = sim_evaluator.evaluate(original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0))
+            ergas_score = ergas_evaluator.evaluate(original_for_psnr.unsqueeze(0), perturbed_for_psnr.unsqueeze(0))
 
             # Save adversarial image
             adv_pil = tensor_to_pil(perturbed_tensor, dataset_name)
             img_filename = (
                 f"adv_{dataset_name}_{attack_name}"
-                f"_model{model_name.replace('_','-')}"
+                f"_model{model_name.replace('_', '-')}"
                 f"_src{source_class}_tgt{target_class}_idx{dataset_index}.png"
             )
             img_path = os.path.join(image_output_dir, img_filename)
@@ -226,9 +202,7 @@ def run_single_generation(config):
                 "target_class": target_class,
                 "original_pred_class": orig_pred_class,
                 "adversarial_pred_class": int(adv_pred_class),
-                "first_success_prob_distribution": (
-                    first_success_output if success else None
-                ),
+                "first_success_prob_distribution": (first_success_output if success else None),
                 "final_prob_distribution": final_output,
                 "dataset_index": dataset_index,
                 "attack_successful": success,
@@ -261,9 +235,7 @@ def run_single_generation(config):
     if device_str == "cuda":
         torch.cuda.empty_cache()
 
-    print(
-        f"[Proc {process_id}] Completed batch processing: {len(metadata_results)} results"
-    )
+    print(f"[Proc {process_id}] Completed batch processing: {len(metadata_results)} results")
     return metadata_results
 
 
@@ -279,17 +251,20 @@ def run_pipeline(config: GenerationConfig):
                 f"Warning: Requesting {config.parallel_processes} parallel CUDA processes but only {num_gpus} GPU(s) detected. Processes might share GPUs, potentially causing slowdowns or memory issues."
             )
         elif num_gpus > config.parallel_processes:
-            print(
-                f"Info: {num_gpus} GPUs detected, but only using {config.parallel_processes} parallel processes."
-            )
+            print(f"Info: {num_gpus} GPUs detected, but only using {config.parallel_processes} parallel processes.")
 
     dataset_instance = DatasetRegistry.get_dataset_instance(config.datasets[0])
-    shared_samples = {}
-    for cls in range(10):
-        indices = dataset_instance.get_indices_from_class(
-            cls, train=False, num_images=config.num_images_per_class
-        )
-        shared_samples[cls] = indices
+    num_classes = len(dataset_instance.labels)
+
+    # Load all images once and share them across processes
+    shared_images = {}
+    for cls in range(num_classes):
+        indices = dataset_instance.get_indices_from_class(cls, train=False, num_images=config.num_images_per_class)
+        shared_images[cls] = []
+        for idx in indices:
+            sample = dataset_instance.get_by_index(idx, train=False)
+            if isinstance(sample, dict) and "tensor" in sample:
+                shared_images[cls].append({"tensor": sample["tensor"], "index": sample["index"]})
 
     # Create configurations for each model-attack-epsilon combination
     param_combinations = list(
@@ -301,17 +276,12 @@ def run_pipeline(config: GenerationConfig):
         )
     )
 
-    # Calculate total number of adversarial examples that will be generated
-    total_examples_per_config = (
-        config.num_images_per_class * 10 * 9
-    )  # num_images * num_classes * (num_classes - 1 targets)
+    total_examples_per_config = config.num_images_per_class * num_classes * (num_classes - 1)
     total_examples = len(param_combinations) * total_examples_per_config
     print(
         f"Will generate {total_examples} adversarial examples across {len(param_combinations)} model-attack configurations"
     )
-    print(
-        f"Each configuration processes {total_examples_per_config} examples in a single batch"
-    )
+    print(f"Each configuration processes {total_examples_per_config} examples in a single batch")
 
     experiment_configs = []
     for i, (model, dataset, attack, eps) in enumerate(param_combinations):
@@ -327,14 +297,12 @@ def run_pipeline(config: GenerationConfig):
             "device": config.device,
             "image_output_dir": config.image_output_dir,
             "process_id": i,
-            "shared_indices": shared_samples,
+            "shared_images": shared_images,
         }
         experiment_configs.append(exp_config)
 
     num_configs = len(experiment_configs)
-    print(
-        f"Generated {num_configs} batch processing configurations (grouped by model + attack)."
-    )
+    print(f"Generated {num_configs} batch processing configurations (grouped by model + attack).")
     if not experiment_configs:
         print("No configurations to run. Exiting.")
         return
@@ -351,9 +319,7 @@ def run_pipeline(config: GenerationConfig):
     all_metadata = []
     with Pool(processes=num_workers) as pool:
         results_iterator = pool.imap(run_single_generation, experiment_configs)
-        for metadata_list in tqdm(
-            results_iterator, total=num_configs, desc="Processing Batches"
-        ):
+        for metadata_list in tqdm(results_iterator, total=num_configs, desc="Processing Batches"):
             if metadata_list:
                 all_metadata.extend(metadata_list)
 
@@ -361,12 +327,8 @@ def run_pipeline(config: GenerationConfig):
         print("Warning: No metadata was generated across all processes.")
         return
 
-    print(
-        f"\nCollected metadata for {len(all_metadata)} generated adversarial examples."
-    )
-    print(
-        f"Successfully processed {len([m for m in all_metadata if m.get('attack_successful')])} successful attacks."
-    )
+    print(f"\nCollected metadata for {len(all_metadata)} generated adversarial examples.")
+    print(f"Successfully processed {len([m for m in all_metadata if m.get('attack_successful')])} successful attacks.")
     metadata_df = pd.DataFrame(all_metadata)
 
     if config.metadata_output_path:
@@ -389,15 +351,17 @@ def run_pipeline(config: GenerationConfig):
 
 
 if __name__ == "__main__":
-    # Use the argument parser from config module
+    start_time = time.time()
+
     parser = create_argument_parser()
     args = parser.parse_args()
 
-    # Convert arguments to GenerationConfig
     config = parse_args_to_config(args)
 
-    # Validate the configuration
     validate_configuration(config)
 
-    # Run the pipeline with the validated configuration
     run_pipeline(config)
+
+    end_time = time.time()
+    total_time = end_time - start_time
+    print(f"\nTotal execution time: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
