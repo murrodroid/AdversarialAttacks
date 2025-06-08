@@ -14,7 +14,8 @@ def cw_attack(
     kappa: int = 0,
     break_early: bool = False,
 ) -> tuple[
-    Tensor, list[bool], list[int | None], list[list[float] | None], list[list[float]]
+    Tensor, list[bool], list[int |
+                             None], list[list[float] | None], list[list[float]]
 ]:
     """
     c = constant controlling the importance of misclassification vs. invisibility.
@@ -37,10 +38,12 @@ def cw_attack(
     B = source_image.shape[0]
     target = torch.tensor(target_class, device=source_image.device)
 
-    success = [False] * B
-    first_success_iter = [None] * B
-    first_success_output = [None] * B
-    final_output = [None] * B
+    success = torch.zeros(B, dtype=torch.bool, device=source_image.device)
+    first_iter = torch.full((B,), -1, dtype=torch.int,
+                            device=source_image.device)
+    first_out = [None] * B
+    final_out = None
+    loss_fn = nn.CrossEntropyLoss(reduction='none')
 
     # Loop for optimizing the adversarial example
     for i in range(steps):
@@ -49,68 +52,49 @@ def cw_attack(
 
         # Feed adversarial image into model
         output = model(x_adv)
-        probs = torch.softmax(output, dim=1).detach()
+        probs = torch.softmax(output, dim=1)
 
         # Get predicted classes for each sample in batch
-        pred_classes = probs.argmax(dim=1)
+        pred = probs.argmax(dim=1)
+        new = ~success & (pred == target)
 
         # Check if the predicted class matches the target class for each sample
-        for j in range(B):
-            if pred_classes[j] == target[j]:
-                if not success[j]:
-                    success[j] = True
-                    first_success_iter[j] = i
-                    first_success_output[j] = (
-                        probs[j].detach().clone().cpu().numpy().tolist()
-                    )
+        if new.any():
+            idx = new.nonzero(as_tuple=True)[0]
+            first_iter[idx] = i
+            for j in idx.tolist():
+                first_out[j] = probs[j].detach().cpu().tolist()
+        success |= pred == target
 
         # Check if we should break early
-        if break_early and all(success):
-            final_output = [
-                probs[j].detach().clone().cpu().numpy().tolist() for j in range(B)
-            ]
+        if break_early and success.all():
+            final_out = [probs[j].detach().cpu().tolist() for j in range(B)]
             break
 
         # logit scores for the target classes (batched)
         real = output[torch.arange(B), target]
-
-        # Gets highest logit scores among other classes for each sample
-        other_logits = []
-        for j in range(B):
-            mask = torch.arange(output.shape[1], device=output.device) != target[j]
-            other_max = torch.max(output[j, mask])
-            other_logits.append(other_max)
-        other = torch.stack(other_logits)
-
-        if model.training:
-            model.eval()  # Ensure deterministic behavior
+        tmp = output.clone()
+        tmp[torch.arange(B), target] = -1e10
+        other = tmp.max(dim=1).values
 
         # misclassification loss (batched)
         loss1 = torch.clamp(other - real + kappa, min=0).sum()
 
         # squared loss between adversarial and original image (batched)
-        loss2 = torch.sum((x_adv - source_image) ** 2)
+        loss2 = (x_adv - source_image).pow(2).sum()
 
         # objective function
         loss = c * loss1 + loss2
-
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        # Store final output on last iteration
-        if i == steps - 1:
-            final_output = [
-                probs[j].detach().clone().cpu().numpy().tolist() for j in range(B)
-            ]
-
-    # returns final adversarial image
-    perturbed_image = 0.5 * (torch.tanh(w) + 1).detach()
-
+    else:
+        final_out = [probs[j].detach().cpu().tolist() for j in range(B)]
+    perturbed = x_adv.detach()
     return (
-        perturbed_image,
-        success,
-        first_success_iter,
-        first_success_output,
-        final_output,
+        perturbed,
+        success.cpu().tolist(),
+        [int(n) if n >= 0 else None for n in first_iter.cpu().tolist()],
+        first_out,
+        final_out,
     )

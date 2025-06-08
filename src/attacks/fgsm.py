@@ -5,47 +5,50 @@ import numpy as np
 
 
 def fgsm_attack(model: object, source_image: Tensor, target_class: list, epsilon: float = 0.1, max_iters: int = 100, break_early: bool = False) -> tuple[Tensor, list[bool], list[int | None], list[list[float] | None], list[list[float]]]:
-    perturbed_image = source_image.clone().detach().requires_grad_(True)
-    target = torch.tensor(target_class, device=perturbed_image.device)
-    criterion = nn.CrossEntropyLoss()
+    pert = source_image.clone().detach().requires_grad_(True)
+    target = torch.tensor(target_class, device=pert.device)
+    loss_fn = nn.CrossEntropyLoss()
+    B = pert.shape[0]
 
-    B = source_image.shape[0]
-    success = [False] * B
-    first_success_iter = [None] * B
-    first_success_output = [None] * B
-    final_output = [None] * B
+    success = torch.zeros(B, dtype=torch.bool, device=pert.device)
+    first_iter = torch.full((B,), -1, dtype=torch.int, device=pert.device)
+    first_out = [None] * B
+    final_out = None
 
     for i in range(max_iters):
-        output = model(perturbed_image)
-        probs = torch.softmax(output, dim=1).detach()
-        pred_classes = probs.argmax(dim=1)
+        logits = model(pert)
+        probs = torch.softmax(logits, dim=1)
+        pred = probs.argmax(dim=1)
 
-        for j in range(B):
-            if pred_classes[j] == target[j]:
-                if not success[j]:
-                    first_success_iter[j] = i
-                    first_success_output[j] = (
-                        probs[j].detach().clone().cpu().numpy().tolist()
-                    )
-                success[j] = True
+        new_success = ~success & (pred == target)
+        if new_success.any():
+            idx = new_success.nonzero(as_tuple=True)[0]
+            first_iter[idx] = i
+            for j in idx.tolist():
+                first_out[j] = probs[j].detach().cpu().numpy().tolist()
+        success |= (pred == target)
 
-        if break_early and all(success):
-                final_output = [probs[j].detach().clone().cpu().numpy().tolist() for j in range(B)]
-                break
+        if break_early and success.all():
+            final_out = [probs[j].detach().cpu().numpy().tolist()
+                         for j in range(B)]
+            break
 
-        loss = -criterion(output, target)
+        loss = -loss_fn(logits, target)
         model.zero_grad()
         loss.backward()
-
         with torch.no_grad():
-            perturbed_image += epsilon * perturbed_image.grad.sign()
-            delta = perturbed_image - source_image
-            delta = torch.clamp(delta, -epsilon * 10, epsilon * 10)
-            perturbed_image = source_image + delta
+            pert += epsilon * pert.grad.sign()
+            delta = pert - source_image
+            pert = source_image + delta.clamp(-epsilon * 10, epsilon * 10)
+        pert.requires_grad_(True)
+    else:
+        final_out = [probs[j].detach().cpu().numpy().tolist()
+                     for j in range(B)]
 
-        perturbed_image.requires_grad_(True)
-
-        if i == max_iters - 1:
-            final_output = [probs[j].detach().clone().cpu().numpy().tolist() for j in range(B)]
-
-    return perturbed_image, success, first_success_iter, first_success_output, final_output
+    pert = pert.detach()
+    success_list = success.cpu().tolist()
+    first_iter_list = [
+        int(n) if n >= 0 else None
+        for n in first_iter.cpu().tolist()
+    ]
+    return pert, success_list, first_iter_list, first_out, final_out
