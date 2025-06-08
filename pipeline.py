@@ -49,7 +49,9 @@ def run_single_generation(generation_config):
         input_batch = input_batch.to(device)
 
     with torch.no_grad():
-        original_predictions = model(input_batch).argmax(1).cpu().numpy()
+        original_outputs = model(input_batch)
+        original_predictions = original_outputs.argmax(1).cpu().numpy()
+        original_probs = torch.softmax(original_outputs, dim=1).cpu().numpy()
 
     perturbed_images, attack_success, first_success_iteration, first_output, final_output = attack_function(
         model, input_batch, [target for (_, target, _) in generation_config["meta"]], **attack_parameters
@@ -57,7 +59,9 @@ def run_single_generation(generation_config):
     perturbed_images = perturbed_images.detach()
 
     with torch.no_grad():
-        adversarial_predictions = model(perturbed_images).argmax(1).cpu().numpy()
+        adversarial_outputs = model(perturbed_images)
+        adversarial_predictions = adversarial_outputs.argmax(1).cpu().numpy()
+        adversarial_probs = torch.softmax(adversarial_outputs, dim=1).cpu().numpy()
 
     ssim_evaluator = SSIM()
 
@@ -96,6 +100,8 @@ def run_single_generation(generation_config):
                 "ssim_score": float(ssim_scores[i]),
                 "ergas_score": float(ergas_scores[i]),
                 "adversarial_image_path": output_paths[i],
+                "original_probs": original_probs[i].tolist(),
+                "adversarial_probs": adversarial_probs[i].tolist(),
             }
         )
     return generation_results
