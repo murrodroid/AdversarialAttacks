@@ -56,7 +56,7 @@ class ImageNet100(Dataset):
         """
         self.root_dir = root_dir
 
-        split_name = 'train' if train else ('validation' if validation else 'test')
+        split_name = 'train' if train else 'validation'
         self.dire = os.path.join(self.root_dir, split_name)
         self.dataset = load_from_disk(self.dire)
 
@@ -157,15 +157,28 @@ def create_imagenet100_loaders(root_dir: str,
 
     return train_loader, val_loader
 
+
+def path_to_imagenet100():
+    """
+    Finds the ImageNet100 dataset in the expected location.
+    Returns the path to the dataset directory.
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(script_dir)) 
+    data_directory = os.path.join(project_root, 'src', 'data', 'imagenet100')
+
+    if not os.path.exists(data_directory):
+        raise FileNotFoundError(f"ImageNet100 dataset not found at {data_directory}")
+
+    return data_directory
+
 # example use
 if __name__ == "__main__":
     local_dataset_path = load_imagenet100()
     print(f"\nDataset setup process finished. Final dataset location: {local_dataset_path}")
 
     # Needed to locate the dataset directory   
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(script_dir)) 
-    data_directory = os.path.join(project_root,'src', 'data', 'imagenet100')
+    data_directory = path_to_imagenet100()
     print(f"\nData directory for ImageNet100: {data_directory}")
 
     train_dataset = ImageNet100(root_dir=data_directory,train=True)
