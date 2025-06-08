@@ -56,7 +56,7 @@ def cw_attack(
 
         # Check if the predicted class matches the target class for each sample
         for j in range(B):
-            if pred_classes[j].item() == target[j].item():
+            if pred_classes[j] == target[j]:
                 if not success[j]:
                     success[j] = True
                     first_success_iter[j] = i

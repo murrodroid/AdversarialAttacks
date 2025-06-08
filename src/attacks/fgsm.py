@@ -21,7 +21,7 @@ def fgsm_attack(model: object, source_image: Tensor, target_class: list, epsilon
         pred_classes = probs.argmax(dim=1)
 
         for j in range(B):
-            if pred_classes[j].item() == target[j].item():
+            if pred_classes[j] == target[j]:
                 if not success[j]:
                     first_success_iter[j] = i
                     first_success_output[j] = (
