@@ -1,28 +1,32 @@
 import torch
 import os
 import shutil
-from datasets import load_from_disk, load_dataset, DatasetDict
+from datasets import load_from_disk, load_dataset
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 import torchvision.transforms as T
+
+
+def get_repo_root():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.dirname(os.path.dirname(script_dir))
 
 
 # Downloading imagenet100 dataset from huggingface
 # saving it locally then to a folder in the git repository and deleting the temporary cache folder
 def load_imagenet100():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_data_dir = os.path.join(script_dir, "..", "data")
-    final_dataset_path = os.path.join(project_data_dir, "imagenet100")
+    repo_root = get_repo_root()
+    final_dataset_path = os.path.join(repo_root, "data", "imagenet100")
 
     if os.path.exists(final_dataset_path):
         print("ImageNet100 dataset already exists in the expected location. Skipping download.")
         return final_dataset_path
 
-    os.makedirs(project_data_dir, exist_ok=True)
-    print(f"Ensured project data directory exists at: {project_data_dir}")
+    os.makedirs(os.path.dirname(final_dataset_path), exist_ok=True)
+    print(f"Ensured data directory exists at: {os.path.dirname(final_dataset_path)}")
 
     temp_cache_dir = "C:\\cache_imagenet100"
     os.makedirs(temp_cache_dir, exist_ok=True)
-    print(f"Ensured cache directory exists at: {project_data_dir}")
+    print(f"Ensured cache directory exists at: {temp_cache_dir}")
 
     # loading the dataset into a temporary cache directory to avoid issues
     print(f"Attempting to load ImageNet100 using temporary cache: {temp_cache_dir}")
@@ -162,9 +166,8 @@ def path_to_imagenet100():
     Finds the ImageNet100 dataset in the expected location.
     Returns the path to the dataset directory.
     """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(script_dir))
-    data_directory = os.path.join(project_root, "src", "data", "imagenet100")
+    repo_root = get_repo_root()
+    data_directory = os.path.join(repo_root, "data", "imagenet100")
 
     if not os.path.exists(data_directory):
         raise FileNotFoundError(f"ImageNet100 dataset not found at {data_directory}")
