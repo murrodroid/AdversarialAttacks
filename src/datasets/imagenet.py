@@ -50,20 +50,15 @@ def load_imagenet100():
 
 
 class ImageNet100(Dataset):
-    def __init__(self, root_dir, train=False, validation=False):
-        """
-        Args:
-            root_dir (string): Directory with all the images.
-            train (bool): If True, load the training set.
-            validation (bool): If True, load the validation set.
-        """
-        self.root_dir = root_dir
+    def __init__(self, root_dir=None, train=False, validation=False):
+        if root_dir is None:
+            root_dir = load_imagenet100()
 
+        self.root_dir = root_dir
         split_name = "train" if train else "validation"
         self.dire = os.path.join(self.root_dir, split_name)
         self.dataset = load_from_disk(self.dire)
 
-        # self.transforms = transforms
         self.transforms = (
             T.Compose(
                 [
@@ -85,6 +80,7 @@ class ImageNet100(Dataset):
         )
 
         self.num_classes = self.dataset.features["label"].num_classes
+        self.labels = list(range(self.num_classes))
 
     def __len__(self):
         """
@@ -107,7 +103,16 @@ class ImageNet100(Dataset):
             # Ensure image is RGB, as required by standard models
             image = self.transforms(image.convert("RGB"))
 
-        return image, torch.tensor(label, dtype=torch.long)
+        return {"tensor": image, "label": label}
+
+    def get_indices_from_class(self, class_idx, train=False, num_images=None):
+        indices = [i for i, item in enumerate(self.dataset) if item["label"] == class_idx]
+        if num_images is not None:
+            indices = indices[:num_images]
+        return indices
+
+    def get_by_index(self, idx, train=False):
+        return self.__getitem__(idx)
 
 
 def create_imagenet100_loaders(root_dir: str, batch_size: int, workers: int = 8):
@@ -196,7 +201,7 @@ if __name__ == "__main__":
     # We want to test the getitem method for two samples
     for i in range(2):
         img, label = train_dataset[i]
-        print(f"Sample {i} from train dataset: Image shape: {img.shape}, Label: {label.item()}")
+        print(f"Sample {i} from train dataset: Image shape: {img['tensor'].shape}, Label: {label.item()}")
     for i in range(2):
         img, label = val_dataset[i]
-        print(f"Sample {i} from test dataset: Image shape: {img.shape}, Label: {label.item()}")
+        print(f"Sample {i} from test dataset: Image shape: {img['tensor'].shape}, Label: {label.item()}")

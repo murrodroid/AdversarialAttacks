@@ -6,9 +6,11 @@ from typing import Dict, List, Callable, Optional, Any
 from multiprocessing import cpu_count
 
 from src.datasets.cifar10 import Cifar10
+from src.datasets.imagenet import ImageNet100
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
 from src.attacks.cw import cw_attack
+from src.models.get_model import get_model
 
 
 @dataclass
@@ -81,12 +83,12 @@ class ModelRegistry:
     """Registry for available models."""
 
     _MODELS: Dict[str, Callable] = {
-        # "resnet18_imagenet": lambda: models.resnet18(
-        #     weights=models.ResNet18_Weights.IMAGENET1K_V1
-        # ),
+        "mobilenet": lambda: get_model("mobilenet"),
+        "resnet": lambda: get_model("resnet"),
+        "swin": lambda: get_model("swin"),
         "cifar10_resnet20": lambda: torch.hub.load(
             "chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True
-        )
+        ),
     }
 
     @classmethod
@@ -114,7 +116,7 @@ class ModelRegistry:
 class DatasetRegistry:
     """Registry for available datasets."""
 
-    _DATASETS: Dict[str, Callable] = {"cifar10": Cifar10}
+    _DATASETS: Dict[str, Callable] = {"cifar10": Cifar10, "imagenet100": ImageNet100}
 
     @classmethod
     def get_available_datasets(cls) -> List[str]:
@@ -165,7 +167,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
     )
 
     # Model configuration
-    default_models = ModelRegistry.get_available_models()[:1]
+    default_models = ModelRegistry.get_available_models()[0:1]
     parser.add_argument(
         "--model",
         type=str,
@@ -179,7 +181,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dataset",
         type=str,
-        default=["cifar10"],
+        default=["imagenet100"],
         nargs="+",
         choices=DatasetRegistry.get_available_datasets(),
         help="Select one or more datasets to use.",
