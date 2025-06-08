@@ -23,12 +23,17 @@ from config import (
 
 
 def run_single_generation(generation_config):
-    set_seed(generation_config["seed"] +
-             generation_config.get("process_id", 0))
-    device = torch.device(generation_config["device"])
+    set_seed(generation_config["seed"] + generation_config.get("process_id", 0))
+
+    requested_device = generation_config["device"]
+    if requested_device == "cuda" and not torch.cuda.is_available():
+        print("CUDA requested but not available. Falling back to CPU.")
+        device = torch.device("cpu")
+    else:
+        device = torch.device(requested_device)
+
     model = generation_config["_cached_model"]
-    attack_function = AttackRegistry.get_attack_function(
-        generation_config["attack_name"])
+    attack_function = AttackRegistry.get_attack_function(generation_config["attack_name"])
     attack_parameters = AttackConfig(
         generation_config["attack_name"],
         generation_config["epsilon"],
@@ -37,8 +42,11 @@ def run_single_generation(generation_config):
     ).get_attack_kwargs()
     attack_parameters["break_early"] = True
 
-    input_batch_cpu = generation_config["batch_cpu"].pin_memory()
-    input_batch = input_batch_cpu.to(device, non_blocking=True)
+    input_batch = generation_config["batch_cpu"]
+    if device.type == "cuda":
+        input_batch = input_batch.pin_memory().to(device, non_blocking=True)
+    else:
+        input_batch = input_batch.to(device)
 
     with torch.no_grad():
         original_predictions = model(input_batch).argmax(1).cpu().numpy()
@@ -49,14 +57,12 @@ def run_single_generation(generation_config):
     perturbed_images = perturbed_images.detach()
 
     with torch.no_grad():
-        adversarial_predictions = model(
-            perturbed_images).argmax(1).cpu().numpy()
+        adversarial_predictions = model(perturbed_images).argmax(1).cpu().numpy()
 
     ssim_evaluator = SSIM()
 
     psnr_scores = PSNR.evaluate(input_batch, perturbed_images).cpu().numpy()
-    ssim_scores = ssim_evaluator.evaluate(
-        input_batch, perturbed_images).cpu().numpy()
+    ssim_scores = ssim_evaluator.evaluate(input_batch, perturbed_images).cpu().numpy()
     ergas_scores = ERGAS.evaluate(input_batch, perturbed_images).cpu().numpy()
 
     output_paths = [
@@ -114,13 +120,11 @@ def run_pipeline(config: GenerationConfig):
                     if target_class != class_idx:
                         images.append(image)
                         metadata.append((class_idx, target_class, image_idx))
-        dataset_caches[dataset_name] = {
-            "batch_cpu": torch.stack(images), "meta": metadata}
+        dataset_caches[dataset_name] = {"batch_cpu": torch.stack(images), "meta": metadata}
 
     experiment_groups = {}
     for process_id, (model_name, dataset_name, attack_name, epsilon) in enumerate(
-        itertools.product(config.models, config.datasets,
-                          config.attacks, config.epsilons)
+        itertools.product(config.models, config.datasets, config.attacks, config.epsilons)
     ):
         experiment_groups.setdefault((model_name, dataset_name), []).append(
             {
@@ -140,8 +144,7 @@ def run_pipeline(config: GenerationConfig):
 
     all_results = []
     for (model_name, dataset_name), experiment_configs in experiment_groups.items():
-        model = ModelRegistry.load_model(
-            model_name, torch.device(config.device)).eval()
+        model = ModelRegistry.load_model(model_name, torch.device(config.device)).eval()
         for exp_config in experiment_configs:
             exp_config["_cached_model"] = model
         for exp_config in tqdm(experiment_configs, desc=f"{model_name}/{dataset_name}"):
@@ -152,8 +155,7 @@ def run_pipeline(config: GenerationConfig):
 
     results_df = pd.DataFrame(all_results)
     if config.metadata_output_path:
-        os.makedirs(os.path.dirname(
-            config.metadata_output_path), exist_ok=True)
+        os.makedirs(os.path.dirname(config.metadata_output_path), exist_ok=True)
         results_df.to_csv(config.metadata_output_path, index=False)
     else:
         print(results_df.head())
@@ -173,5 +175,4 @@ if __name__ == "__main__":
 
     end_time = time.time()
     total_time = end_time - start_time
-    print(
-        f"\nTotal execution time: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
+    print(f"\nTotal execution time: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
