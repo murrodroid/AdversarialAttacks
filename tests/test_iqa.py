@@ -12,24 +12,26 @@ class TestImageQualityAssessment(unittest.TestCase):
 
     def test_psnr(self):
         psnr = PSNR()
-        result = psnr.evaluate(self.original_tensor, self.perturbed_tensor)
+        result = psnr.evaluate(self.original_tensor,
+                               self.perturbed_tensor).item()
         self.assertAlmostEqual(result, 69.47459411621094, places=6)
 
     def test_psnr_full_similarity(self):
         psnr = PSNR()
-        result = psnr.evaluate(self.original_tensor, self.original_tensor)
+        result = psnr.evaluate(self.original_tensor,
+                               self.original_tensor).item()
         self.assertEqual(result, 0)
 
     def test_ssim(self):
         ssim = SSIM(window_size=11, sigma=1.5)
         result = ssim.evaluate(
-            self.original_tensor, self.perturbed_tensor)
+            self.original_tensor, self.perturbed_tensor).item()
         self.assertAlmostEqual(result, 0.999845027923584, places=6)
 
     def test_ssim_full_similarity(self):
         ssim = SSIM(window_size=11, sigma=1.5)
         result = ssim.evaluate(self.original_tensor,
-                               self.original_tensor)
+                               self.original_tensor).item()
         self.assertEqual(result, 1)
 
 
