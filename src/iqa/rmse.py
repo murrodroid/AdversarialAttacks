@@ -2,7 +2,8 @@ import torch
 
 
 class RMSE:
-    def evaluate(self, img1: torch.Tensor, img2: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def evaluate(img1: torch.Tensor, img2: torch.Tensor) -> torch.Tensor:
         '''
         Computes the per-channel Root Mean Square Error (RMSE) between two image tensors.
 

@@ -24,8 +24,8 @@ class TestImageQualityAssessment(unittest.TestCase):
 
     def test_ssim(self):
         ssim = SSIM(window_size=11, sigma=1.5)
-        result = ssim.evaluate(
-            self.original_tensor, self.perturbed_tensor).item()
+        result = ssim.evaluate(self.original_tensor,
+                               self.perturbed_tensor).item()
         self.assertAlmostEqual(result, 0.999845027923584, places=6)
 
     def test_ssim_full_similarity(self):
@@ -34,6 +34,40 @@ class TestImageQualityAssessment(unittest.TestCase):
                                self.original_tensor).item()
         self.assertEqual(result, 1)
 
+    def test_ergas(self):
+        ergas = ERGAS()
+        result = ergas.evaluate(self.original_tensor,
+                                self.perturbed_tensor).item()
+        self.assertAlmostEqual(result, 6957726.0, places=1)
 
-if __name__ == '__main__':
+    def test_ergas_full_similarity(self):
+        ergas = ERGAS()
+        result = ergas.evaluate(self.original_tensor,
+                                self.original_tensor).item()
+        self.assertEqual(result, 0)
+
+    def test_rmse(self):
+        rmse = RMSE()
+        result = rmse.evaluate(self.original_tensor,
+                               self.perturbed_tensor).mean().item()
+        self.assertAlmostEqual(result, 0.08565672487020493, places=4)
+
+    def test_rmse_full_similarity(self):
+        rmse = RMSE()
+        result = rmse.evaluate(self.original_tensor,
+                               self.original_tensor).mean().item()
+        self.assertEqual(result, 0)
+
+    def test_sam(self):
+        sam = SAM()
+        result = sam.getSAM(self.original_tensor, self.perturbed_tensor).item()
+        self.assertAlmostEqual(result, 4.999481201171875, places=6)
+
+    def test_sam_full_similarity(self):
+        sam = SAM()
+        result = sam.getSAM(self.original_tensor, self.original_tensor).item()
+        self.assertAlmostEqual(result, 0.04747385159134865, places=6)
+
+
+if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,8 @@ import torch
 
 
 class PSNR:
-    def evaluate(self, img1: torch.Tensor, img2: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def evaluate(img1: torch.Tensor, img2: torch.Tensor) -> torch.Tensor:
         '''
         Computes Peak Signal to Noise Ratio between two 4D tensors.
 

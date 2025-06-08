@@ -1,8 +1,9 @@
 import torch
 import math
 
+
 class SAM:
-    def getSAM(self, img1: torch.Tensor, img2: torch.Tensor, eps: float = 1e-8, return_degrees: bool = True) -> float:
+    def getSAM(self, img1: torch.Tensor, img2: torch.Tensor, eps: float = 1e-8, return_degrees: bool = True) -> torch.Tensor:
         '''
         Computes the Spectral Angle Mapper (SAM) between two image tensors.
 
@@ -21,6 +22,7 @@ class SAM:
         angle_mean = angle.mean()
         if return_degrees:
             angle_mean = angle_mean * 180.0 / math.pi
-        return angle_mean.item()
+        return angle_mean
+
 
 __all__ = ['SAM']

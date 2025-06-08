@@ -1,40 +1,14 @@
-import torch
-import os
-import pandas as pd
-import numpy as np
-import itertools
-from tqdm import tqdm
-import time
-
-from src.utils.randomness import set_seed
-from src.utils.torch_util import tensor_to_pil
-from src.iqa import *
-
-
-from config import (
-    ModelRegistry,
-    DatasetRegistry,
-    AttackRegistry,
-    GenerationConfig,
-    AttackConfig,
-    create_argument_parser,
-    parse_args_to_config,
-    validate_configuration,
-)
-
-
-import torch
-import os
-import pandas as pd
-import numpy as np
-import itertools
-from tqdm import tqdm
-import time
 from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm
+import pandas as pd
+import itertools
+import torch
+import time
+import os
 
 from src.utils.randomness import set_seed
 from src.utils.torch_util import tensor_to_pil
-from src.iqa import PSNR, SSIM, ERGAS
+from src.iqa import ERGAS, PSNR, SSIM
 
 from config import (
     ModelRegistry,
@@ -71,13 +45,11 @@ def run_single_generation(cfg):
     with torch.no_grad():
         adv_preds = model(perturbed).argmax(1).cpu().numpy()
 
-    psnr_eval = PSNR()
     ssim_eval = SSIM()
-    ergas_eval = ERGAS()
 
-    psnr = psnr_eval.evaluate(batch, perturbed).cpu().numpy()
+    psnr = PSNR.evaluate(batch, perturbed).cpu().numpy()
     ssim = ssim_eval.evaluate(batch, perturbed).cpu().numpy()
-    ergas = ergas_eval.evaluate(batch, perturbed).cpu().numpy()
+    ergas = ERGAS.evaluate(batch, perturbed).cpu().numpy()
 
     paths = [
         f"{cfg['image_output_dir']}/adv_{cfg['attack_name']}_src{src}_tgt{tgt}_idx{idx}.png"
