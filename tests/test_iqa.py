@@ -21,14 +21,17 @@ class TestImageQualityAssessment(unittest.TestCase):
         self.assertEqual(result, 0)
 
     def test_ssim(self):
-        ssim = SSIM()
-        result = ssim.evaluate(self.original_tensor, self.perturbed_tensor, window_size=11, sigma=1.5)
+        ssim = SSIM(window_size=11, sigma=1.5)
+        result = ssim.evaluate(
+            self.original_tensor, self.perturbed_tensor)
         self.assertAlmostEqual(result, 0.999845027923584, places=6)
 
     def test_ssim_full_similarity(self):
-        ssim = SSIM()
-        result = ssim.evaluate(self.original_tensor, self.original_tensor, window_size=11, sigma=1.5)
+        ssim = SSIM(window_size=11, sigma=1.5)
+        result = ssim.evaluate(self.original_tensor,
+                               self.original_tensor)
         self.assertEqual(result, 1)
+
 
 if __name__ == '__main__':
     unittest.main()

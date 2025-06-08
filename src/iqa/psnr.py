@@ -1,5 +1,6 @@
 import torch
 
+
 class PSNR:
     def evaluate(self, img1: torch.Tensor, img2: torch.Tensor) -> float:
         '''
@@ -9,15 +10,13 @@ class PSNR:
         :param img2: manipulated image (as torch tensor)
         :return: psnr score (float), higher is better
         '''
-        diff = torch.abs(img1 - img2).float()
-        sse = (diff ** 2).sum()
+        mse = torch.mean((img1.float() - img2.float()) ** 2)
 
-        if sse.item() <= 1e-12:
-            psnr = 0
-        else:
-            mse = sse / img1.numel()
-            psnr = 10.0 * torch.log10((255 * 255) / mse)
+        if mse.item() <= 1e-12:
+            return 0.0
 
-        return float(psnr)
+        psnr = 10.0 * torch.log10(65025.0 / mse)  # 65025 = 255^2
+        return psnr.item()
+
 
 __all__ = ['PSNR']
