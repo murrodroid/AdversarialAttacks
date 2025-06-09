@@ -4,7 +4,14 @@
 
 - Python 3.8 or higher (recommends 3.11)
 
-## Setup
+## Easy Setup w CONDA (ONLY CUDA-compatible)
+
+1. Execute the environment-file
+   ```sh
+   conda env create -f environment.yml
+   ```
+
+## Alternative Setup
 
 1. Clone the repository
    ```sh
