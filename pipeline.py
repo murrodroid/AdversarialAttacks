@@ -127,7 +127,9 @@ def run_single_generation(generation_config):
                 "target_class": target_class,
                 "original_pred_class": int(original_predictions[i]),
                 "adversarial_pred_class": int(adversarial_predictions[i]),
-                "first_success_iter": first_success_iteration[i] if attack_success[i] else None,
+                "first_success_iter": (
+                    first_success_iteration[i] if attack_success[i] else None
+                ),
                 "attack_successful": bool(attack_success[i]),
                 "psnr_score": float(psnr_scores[i]),
                 "ssim_score": float(ssim_scores[i]),
@@ -135,6 +137,7 @@ def run_single_generation(generation_config):
                 "adversarial_image_path": output_paths[i],
                 "original_probs": original_probs[i].tolist(),
                 "adversarial_probs": adversarial_probs[i].tolist(),
+                "dataset_index": image_index,
             }
         )
     return generation_results
