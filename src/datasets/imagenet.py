@@ -114,7 +114,7 @@ class ImageNet100(Dataset):
             # Ensure image is RGB, as required by standard models
             image = self.transforms(image.convert("RGB"))
 
-        return {"tensor": image, "label": label}
+        return image, label
 
     def get_indices_from_class(self, class_idx, train=False, num_images=None):
         indices = [i for i, item in enumerate(self.dataset) if item["label"] == class_idx]
