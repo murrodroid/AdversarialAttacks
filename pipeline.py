@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import pandas as pd
 import itertools
@@ -127,33 +128,47 @@ def run_single_generation(generation_config, attack_config):
     return generation_results
 
 
-def preprocess_batches(dataset, num_classes, num_images_per_class, batch_size):
-    all_images = []
-    all_metadata = []
+class AdvDataset(Dataset):
+    def __init__(self, dataset, num_classes, num_images_per_class):
+        self.dataset = dataset
+        labels = [item["label"] for item in dataset.dataset]
+        by_class = {c: [] for c in range(num_classes)}
+        for i, lbl in enumerate(tqdm(labels, desc="Gathering samples")):
+            if len(by_class[lbl]) < num_images_per_class:
+                by_class[lbl].append(i)
+        self.samples = [
+            (src, tgt, idx)
+            for src in range(num_classes)
+            for tgt in range(num_classes)
+            if tgt != src
+            for idx in by_class[src]
+        ]
 
-    for class_idx in tqdm(range(num_classes), desc="Loading images"):
-        image_indices = dataset.get_indices_from_class(class_idx, train=False, num_images=num_images_per_class)
+    def __len__(self):
+        return len(self.samples)
 
-        for image_idx in image_indices:
-            sample = dataset.get_by_index(image_idx, train=False)
-            image = sample["tensor"].squeeze(0)
+    def __getitem__(self, i):
+        src, tgt, idx = self.samples[i]
+        img = self.dataset.get_by_index(idx, train=False)["tensor"].squeeze(0)
+        return img, (src, tgt, idx)
 
-            for target_class in range(num_classes):
-                if target_class != class_idx:
-                    all_images.append(image)
-                    all_metadata.append((class_idx, target_class, image_idx))
 
+def preprocess_batches(dataset, num_classes, num_images_per_class, batch_size, workers=8):
+    ds = AdvDataset(dataset, num_classes, num_images_per_class)
+    loader = DataLoader(
+        ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=workers,
+        pin_memory=False,
+        persistent_workers=True,
+    )
+    total = (len(ds) + batch_size - 1) // batch_size
     batches = []
-    for i in range(0, len(all_images), batch_size):
-        batch_images = all_images[i : i + batch_size]
-        batch_metadata = all_metadata[i : i + batch_size]
-
-        if batch_images:
-            batch_tensor = torch.stack(batch_images)
-            if torch.cuda.is_available():
-                batch_tensor = batch_tensor.pin_memory()
-            batches.append({"batch_cpu": batch_tensor, "meta": batch_metadata})
-
+    for imgs, metas in tqdm(loader, desc="Loading batches", total=total):
+        srcs, tgts, idxs = metas
+        meta_list = [(int(s), int(t), int(i)) for s, t, i in zip(srcs, tgts, idxs)]
+        batches.append({"batch_cpu": imgs, "meta": meta_list})
     return batches
 
 

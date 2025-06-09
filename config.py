@@ -10,7 +10,7 @@ from src.datasets.imagenet import ImageNet100
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
 from src.attacks.cw import cw_attack
-from src.models.get_model import get_model
+from src.models.get_model import get_model, get_finetuned_model
 
 
 @dataclass
@@ -88,7 +88,7 @@ class ModelRegistry:
 
     _MODELS: Dict[str, Callable] = {
         "mobilenet": lambda: get_model("mobilenet"),
-        "resnet": lambda: get_model("resnet"),
+        "resnet": lambda: get_finetuned_model("resnet"),
         "swin": lambda: get_model("swin"),
         "cifar10_resnet20": lambda: torch.hub.load(
             "chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True
@@ -171,7 +171,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
     )
 
     # Model configuration
-    default_models = ModelRegistry.get_available_models()[-1]
+    default_models = ModelRegistry.get_available_models()[1]
     parser.add_argument(
         "--model",
         type=str,
@@ -182,7 +182,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
     )
 
     # Dataset configuration
-    default_dataset = DatasetRegistry.get_available_datasets()[0]
+    default_dataset = DatasetRegistry.get_available_datasets()[1]
     parser.add_argument(
         "--dataset",
         type=str,
@@ -196,7 +196,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--attack",
         type=str,
-        default=default_attacks,
+        default=default_attacks[0:1],
         nargs="+",
         choices=AttackRegistry.get_available_attacks(),
         help="Select one or more attack methods.",
@@ -230,7 +230,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=512,
+        default=64,
         help="Number of images to process in each batch.",
     )
 
