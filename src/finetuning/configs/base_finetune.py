@@ -4,36 +4,35 @@ from datetime import datetime
 run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 #eksempel til resnet50 finetuning til imagenet100
-config = dict(
-    training = dict(
-        model_name        = "resnet",
-        output_dim        = 100,
-        finetune_all_layers = False,
 
-        epochs            = 128,
-        batch_size        = 64,
-        learning_rate     = 0.001,
-        weight_decay      = 1e-4,
-        lr_scheduler      = "cosine",
+train_cfg = dict(
+    model_name        = "resnet",
+    output_dim        = 100,
+    finetune_all_layers = False,
 
-        workers           = 8,
-        amp               = True,
-        save_dir          = Path("checkpoints") / f"resnet50-{run_id}",
+    epochs            = 128,
+    batch_size        = 64,
+    learning_rate     = 0.001,
+    weight_decay      = 1e-4,
+    lr_scheduler      = "cosine",
 
-        dataset_root        = Path("/data/imagenet100"),
-    ),
-    wandb = dict(
-        project = "adversarialAttacks",
-        entity  = None,            
-        mode    = "online", 
-    )
+    workers           = 8,
+    amp               = True,
+    save_dir          = Path("checkpoints") / f"resnet50-{run_id}",
+
+    dataset_root        = Path("/data/imagenet100"),
+)
+wandb_cfg = dict(
+    project  = "adversarialAttacks",
+    entity   = None,   
+    mode     = "online", 
+    run_name = f"resnet50_{run_id}",
 )
 
-run_name  = f"{config['training']['model_name']}_{run_id}"
 runs_root   = Path("finetune_results/base_finetune")     # top-level folder
-run_dir     = runs_root / run_name          
-ckpt_dir    = run_dir / "checkpoints"
-reports_dir = run_dir / "reports"
-run_dir.mkdir(parents=True, exist_ok=True)
-ckpt_dir.mkdir(exist_ok=True)
-reports_dir.mkdir(exist_ok=True)
+# run_dir     = runs_root / run_name          
+# ckpt_dir    = run_dir / "checkpoints"
+# reports_dir = run_dir / "reports"
+# run_dir.mkdir(parents=True, exist_ok=True)
+# ckpt_dir.mkdir(exist_ok=True)
+# reports_dir.mkdir(exist_ok=True)
