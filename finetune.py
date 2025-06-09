@@ -14,7 +14,6 @@ def main() -> None:
     train_loader,val_loader = create_imagenet100_loaders(
         batch_size=config["training"]["batch_size"],
         workers=config["training"]["workers"],
-        root_dir=config["training"]["dataset_root"],
         )
     finetune(
         model=model,

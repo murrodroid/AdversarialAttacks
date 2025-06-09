@@ -109,12 +109,25 @@ class ImageNet100(Dataset):
 
         return image, torch.tensor(label, dtype=torch.long)
 
+def path_to_imagenet100():
+    """
+    Finds the ImageNet100 dataset in the expected location.
+    Returns the path to the dataset directory.
+    """
+    repo_root = get_repo_root()
+    data_directory = os.path.join(repo_root, "data", "imagenet100")
 
-def create_imagenet100_loaders(root_dir: str, batch_size: int, workers: int = 8):
+    if not os.path.exists(data_directory):
+        raise FileNotFoundError(f"ImageNet100 dataset not found at {data_directory}")
+
+    return data_directory
+
+def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8):
     """
     Returns (train_loader, val_loader) for ImageNet100.
     Automatically wraps in DistributedSampler if DDP is active.
     """
+    root_dir = path_to_imagenet100()
     world_size = (
         torch.distributed.get_world_size()
         if torch.distributed.is_available() and torch.distributed.is_initialized()
@@ -161,20 +174,6 @@ def create_imagenet100_loaders(root_dir: str, batch_size: int, workers: int = 8)
     return train_loader, val_loader
 
 
-def path_to_imagenet100():
-    """
-    Finds the ImageNet100 dataset in the expected location.
-    Returns the path to the dataset directory.
-    """
-    repo_root = get_repo_root()
-    data_directory = os.path.join(repo_root, "data", "imagenet100")
-
-    if not os.path.exists(data_directory):
-        raise FileNotFoundError(f"ImageNet100 dataset not found at {data_directory}")
-
-    return data_directory
-
-
 # example use
 if __name__ == "__main__":
     local_dataset_path = load_imagenet100()
@@ -189,8 +188,7 @@ if __name__ == "__main__":
     print(f"\nLength of training dataset object: {len(train_dataset)}")
     print(f"\nLength of validation dataset object: {len(val_dataset)}")
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=4)
+    train_loader,val_loader = create_imagenet100_loaders(batch_size=16,workers=4)
     print("\nDataLoaders works")
 
     # We want to test the getitem method for two samples
