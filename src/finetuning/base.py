@@ -3,6 +3,7 @@ import torch.distributed as dist
 from torch import nn, optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.cuda.amp import autocast, GradScaler
+from src.utils.torch_util import getDevice
 
 def _replace_head(model, name: str, cfg: dict):
     if name == "resnet":
@@ -44,31 +45,34 @@ def finetune(model, train_loader, val_loader, cfg: dict):
     train_cfg = cfg['training']
     wandb_cfg = cfg['wandb']
     model_name = train_cfg['model_name']
-    rank = int(os.environ["LOCAL_RANK"])
+    rank = int(os.getenv("LOCAL_RANK", 0))
     model = _replace_head(model, model_name, train_cfg)
+    device = getDevice()
 
-    if not torch.cuda.is_available():
-        raise RuntimeError('cuda not available, aint no way we finetunin on cpu bruh')
+    if not (torch.cuda.is_available() or getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()):
+        raise RuntimeError('cuda/mps not available, aint no way we finetunin on cpu bruh')
 
-    dist.init_process_group("nccl")
-    torch.cuda.set_device(rank)
+    distributed = int(os.getenv("WORLD_SIZE", 1)) > 1
+    if distributed:
+        dist.init_process_group("nccl")
+        torch.cuda.set_device(rank)
     
-    if not train_cfg["finetune_all_layers"]:
-        model = _freeze_backbone(model, model_name)
+    if not train_cfg["finetune_all_layers"]: model = _freeze_backbone(model, model_name)
     
     params = filter(lambda p: p.requires_grad, model.parameters())
     opt = _build_opt(model_name,params,train_cfg)
 
-    model = model.cuda()
-    model = DDP(model, device_ids=[rank])
+    model = model.to(device)
+    if distributed: model = DDP(model, device_ids=[rank])
 
     run = wandb.init(
-               project=wandb_cfg["project"],
-               entity=wandb_cfg.get('entity'), 
-               mode="online" if rank == 0 else "disabled",
-               config=train_cfg)
-    
-    criterion = nn.CrossEntropyLoss().cuda()
+        project = wandb_cfg["project"],
+        entity  = wandb_cfg.get("entity"),
+        mode    = "online" if rank == 0 else "disabled",
+        config  = train_cfg,
+    )
+
+    criterion = nn.CrossEntropyLoss().to(device)
     sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=train_cfg["epochs"])
     use_amp = train_cfg.get('amp',True)
     scaler = GradScaler(enabled=use_amp)
@@ -112,6 +116,7 @@ def finetune(model, train_loader, val_loader, cfg: dict):
                 os.makedirs(train_cfg["save_dir"], exist_ok=True)
                 state = model.module.state_dict() if isinstance(model, DDP) else model.state_dict()
                 torch.save(state, os.path.join(train_cfg["save_dir"], "best.pt"))
-    if rank == 0:
-        wandb.finish()
-    dist.destroy_process_group()
+    
+    # end
+    if rank == 0: wandb.finish()
+    if distributed: dist.destroy_process_group()

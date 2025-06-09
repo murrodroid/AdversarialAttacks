@@ -17,7 +17,6 @@ def main() -> None:
         )
     finetune(
         model=model,
-        model_name=model_name,
         train_loader=train_loader,
         val_loader=val_loader,
         cfg=config,
