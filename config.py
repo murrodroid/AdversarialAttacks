@@ -52,9 +52,9 @@ class GenerationConfig:
     """Configuration for the adversarial image generation pipeline."""
 
     models: List[str]
-    datasets: List[str]
+    dataset: str
     attacks: List[str]
-    epsilons: List[float]
+    epsilon: float
     alpha: float
     iterations: int
     num_images_per_class: int
@@ -77,9 +77,8 @@ class GenerationConfig:
         """Generate AttackConfig objects for all attack/epsilon combinations."""
         attack_configs = []
         for attack_name in self.attacks:
-            for epsilon in self.epsilons:
-                config = AttackConfig(name=attack_name, epsilon=epsilon, alpha=self.alpha, iterations=self.iterations)
-                attack_configs.append(config)
+            config = AttackConfig(name=attack_name, epsilon=self.epsilon, alpha=self.alpha, iterations=self.iterations)
+            attack_configs.append(config)
         return attack_configs
 
 
@@ -186,10 +185,9 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dataset",
         type=str,
-        default=[default_dataset],
-        nargs="+",
+        default=default_dataset,
         choices=DatasetRegistry.get_available_datasets(),
-        help="Select one or more datasets to use.",
+        help="Select dataset to use.",
     )
 
     # Attack configuration
@@ -213,9 +211,8 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--epsilon",
         type=float,
-        default=[0.03],
-        nargs="+",
-        help="Epsilon value(s) for perturbation magnitude (e.g., for FGSM, PGD). Not used for CW attack.",
+        default=0.03,
+        help="Epsilon value for perturbation magnitude (e.g., for FGSM, PGD). Not used for CW attack.",
     )
     parser.add_argument(
         "--alpha",
@@ -267,9 +264,9 @@ def parse_args_to_config(args: argparse.Namespace) -> GenerationConfig:
     """Convert parsed arguments to a GenerationConfig object."""
     return GenerationConfig(
         models=args.model,
-        datasets=args.dataset,
+        dataset=args.dataset,
         attacks=args.attack,
-        epsilons=args.epsilon,
+        epsilon=args.epsilon,
         alpha=args.alpha,
         iterations=args.iterations,
         num_images_per_class=args.num_images,
@@ -299,11 +296,10 @@ def validate_configuration(config: GenerationConfig) -> None:
         if model not in available_models:
             raise ValueError(f"Model '{model}' not available. Available models: {available_models}")
 
-    # Validate datasets exist
+    # Validate dataset exists
     available_datasets = DatasetRegistry.get_available_datasets()
-    for dataset in config.datasets:
-        if dataset not in available_datasets:
-            raise ValueError(f"Dataset '{dataset}' not available. Available datasets: {available_datasets}")
+    if config.dataset not in available_datasets:
+        raise ValueError(f"Dataset '{config.dataset}' not available. Available datasets: {available_datasets}")
 
     # Validate attacks exist
     available_attacks = AttackRegistry.get_available_attacks()

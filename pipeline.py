@@ -50,9 +50,7 @@ def run_single_generation(generation_config):
         input_batch = input_batch.to(device)
 
     if attack_config.needs_unnormalized_tensors():
-        attack_input_batch = unnormalize_tensor(
-            input_batch, generation_config["dataset_name"]
-        )
+        attack_input_batch = unnormalize_tensor(input_batch, generation_config["dataset_name"])
     else:
         attack_input_batch = input_batch
 
@@ -76,9 +74,7 @@ def run_single_generation(generation_config):
     perturbed_images = perturbed_images.detach()
 
     if attack_config.needs_unnormalized_tensors():
-        perturbed_normalized = normalize_tensor(
-            perturbed_images, generation_config["dataset_name"]
-        )
+        perturbed_normalized = normalize_tensor(perturbed_images, generation_config["dataset_name"])
     else:
         perturbed_normalized = perturbed_images
 
@@ -90,15 +86,11 @@ def run_single_generation(generation_config):
     ssim_evaluator = SSIM()
 
     psnr_scores = PSNR.evaluate(input_batch, perturbed_normalized).cpu().numpy()
-    ssim_scores = (
-        ssim_evaluator.evaluate(input_batch, perturbed_normalized).cpu().numpy()
-    )
+    ssim_scores = ssim_evaluator.evaluate(input_batch, perturbed_normalized).cpu().numpy()
     ergas_scores = ERGAS.evaluate(input_batch, perturbed_normalized).cpu().numpy()
 
     if attack_config.needs_unnormalized_tensors():
-        images_to_save = normalize_tensor(
-            perturbed_images, generation_config["dataset_name"]
-        )
+        images_to_save = normalize_tensor(perturbed_images, generation_config["dataset_name"])
     else:
         images_to_save = perturbed_images
 
@@ -127,9 +119,7 @@ def run_single_generation(generation_config):
                 "target_class": target_class,
                 "original_pred_class": int(original_predictions[i]),
                 "adversarial_pred_class": int(adversarial_predictions[i]),
-                "first_success_iter": (
-                    first_success_iteration[i] if attack_success[i] else None
-                ),
+                "first_success_iter": (first_success_iteration[i] if attack_success[i] else None),
                 "attack_successful": bool(attack_success[i]),
                 "psnr_score": float(psnr_scores[i]),
                 "ssim_score": float(ssim_scores[i]),
@@ -146,50 +136,44 @@ def run_single_generation(generation_config):
 def run_pipeline(config: GenerationConfig):
     os.makedirs(config.image_output_dir, exist_ok=True)
 
-    dataset_caches = {}
-    for dataset_name in config.datasets:
-        dataset = DatasetRegistry.get_dataset_instance(dataset_name)
-        num_classes = len(dataset.labels)
-        images = []
-        metadata = []
-        for class_idx in range(num_classes):
-            for image_idx in dataset.get_indices_from_class(
-                class_idx, train=False, num_images=config.num_images_per_class
-            ):
-                sample = dataset.get_by_index(image_idx, train=False)
-                image = sample["tensor"].squeeze(0)
-                for target_class in range(num_classes):
-                    if target_class != class_idx:
-                        images.append(image)
-                        metadata.append((class_idx, target_class, image_idx))
-        dataset_caches[dataset_name] = {"batch_cpu": torch.stack(images), "meta": metadata}
+    dataset = DatasetRegistry.get_dataset_instance(config.dataset)
+    num_classes = len(dataset.labels)
+    images = []
+    metadata = []
+    for class_idx in range(num_classes):
+        for image_idx in dataset.get_indices_from_class(class_idx, train=False, num_images=config.num_images_per_class):
+            sample = dataset.get_by_index(image_idx, train=False)
+            image = sample["tensor"].squeeze(0)
+            for target_class in range(num_classes):
+                if target_class != class_idx:
+                    images.append(image)
+                    metadata.append((class_idx, target_class, image_idx))
+    dataset_cache = {"batch_cpu": torch.stack(images), "meta": metadata}
 
     experiment_groups = {}
-    for process_id, (model_name, dataset_name, attack_name, epsilon) in enumerate(
-        itertools.product(config.models, config.datasets, config.attacks, config.epsilons)
-    ):
-        experiment_groups.setdefault((model_name, dataset_name), []).append(
+    for process_id, (model_name, attack_name) in enumerate(itertools.product(config.models, config.attacks)):
+        experiment_groups.setdefault(model_name, []).append(
             {
                 "model_name": model_name,
-                "dataset_name": dataset_name,
+                "dataset_name": config.dataset,
                 "attack_name": attack_name,
-                "epsilon": epsilon,
+                "epsilon": config.epsilon,
                 "alpha": config.alpha,
                 "iterations": config.iterations,
                 "seed": config.seed,
                 "device": config.device,
                 "image_output_dir": config.image_output_dir,
                 "process_id": process_id,
-                **dataset_caches[dataset_name],
+                **dataset_cache,
             }
         )
 
     all_results = []
-    for (model_name, dataset_name), experiment_configs in experiment_groups.items():
+    for model_name, experiment_configs in experiment_groups.items():
         model = ModelRegistry.load_model(model_name, torch.device(config.device)).eval()
         for exp_config in experiment_configs:
             exp_config["_cached_model"] = model
-        for exp_config in tqdm(experiment_configs, desc=f"{model_name}/{dataset_name}"):
+        for exp_config in tqdm(experiment_configs, desc=f"{model_name}/{attack_name}"):
             all_results.extend(run_single_generation(exp_config))
         del model
         if config.device == "cuda":
