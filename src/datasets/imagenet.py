@@ -50,20 +50,15 @@ def load_imagenet100():
 
 
 class ImageNet100(Dataset):
-    def __init__(self, root_dir, train=False, validation=False):
-        """
-        Args:
-            root_dir (string): Directory with all the images.
-            train (bool): If True, load the training set.
-            validation (bool): If True, load the validation set.
-        """
-        self.root_dir = root_dir
+    def __init__(self, root_dir=None, train=False, validation=False):
+        if root_dir is None:
+            root_dir = load_imagenet100()
 
+        self.root_dir = root_dir
         split_name = "train" if train else "validation"
         self.dire = os.path.join(self.root_dir, split_name)
         self.dataset = load_from_disk(self.dire)
 
-        # self.transforms = transforms
         self.transforms = (
             T.Compose(
                 [
@@ -85,6 +80,18 @@ class ImageNet100(Dataset):
         )
 
         self.num_classes = self.dataset.features["label"].num_classes
+        self.labels = list(range(self.num_classes))
+
+    @staticmethod
+    def inverse_transforms(tensor):
+        """Convert normalized ImageNet tensor back to [0,1] range."""
+        inv_mean = [
+            -m / s for m, s in zip([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]
+        inv_std = [1 / s for s in [0.229, 0.224, 0.225]]
+
+        transform = T.Compose([T.Normalize(tuple(inv_mean), tuple(inv_std))])
+        return transform(tensor)
 
     def __len__(self):
         """
@@ -107,7 +114,16 @@ class ImageNet100(Dataset):
             # Ensure image is RGB, as required by standard models
             image = self.transforms(image.convert("RGB"))
 
-        return image, torch.tensor(label, dtype=torch.long)
+        return {"tensor": image, "label": label}
+
+    def get_indices_from_class(self, class_idx, train=False, num_images=None):
+        indices = [i for i, item in enumerate(self.dataset) if item["label"] == class_idx]
+        if num_images is not None:
+            indices = indices[:num_images]
+        return indices
+
+    def get_by_index(self, idx, train=False):
+        return self.__getitem__(idx)
 
 def path_to_imagenet100():
     """
@@ -194,7 +210,7 @@ if __name__ == "__main__":
     # We want to test the getitem method for two samples
     for i in range(2):
         img, label = train_dataset[i]
-        print(f"Sample {i} from train dataset: Image shape: {img.shape}, Label: {label.item()}")
+        print(f"Sample {i} from train dataset: Image shape: {img['tensor'].shape}, Label: {label.item()}")
     for i in range(2):
         img, label = val_dataset[i]
-        print(f"Sample {i} from test dataset: Image shape: {img.shape}, Label: {label.item()}")
+        print(f"Sample {i} from test dataset: Image shape: {img['tensor'].shape}, Label: {label.item()}")
