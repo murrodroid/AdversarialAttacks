@@ -3,13 +3,16 @@ import torchvision.transforms.functional as TF
 from src.datasets.cifar10 import Cifar10
 from PIL import Image
 from src.datasets.imagenet import ImageNet100
+import os
 
 
-def getDevice():
-    device = 'cuda' if torch.cuda.is_available(
-    ) else 'mps' if torch.backends.mps.is_available() else 'cpu'
-    return device
-
+def getDevice() -> torch.device:
+    if torch.cuda.is_available():
+        rank = int(os.getenv("LOCAL_RANK", 0))
+        return torch.device(f"cuda:{rank}")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
 
 def tensor_to_pil(tensor, dataset_name):
     """
