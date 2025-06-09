@@ -109,7 +109,7 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
         # wandb stats & save best model
         if rank == 0:
             epoch_stats = {
-                "epoch"      : epoch,
+                "epoch"      : epoch+1,
                 "lr"         : sched.get_last_lr()[0],
                 "train_loss" : tr_loss / tr_total,
                 "train_acc"  : tr_correct / tr_total,
