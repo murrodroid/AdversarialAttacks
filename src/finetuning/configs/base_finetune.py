@@ -10,7 +10,7 @@ train_cfg = dict(
     output_dim        = 100,
     finetune_all_layers = False,
 
-    epochs            = 128,
+    epochs            = 5,
     batch_size        = 64,
     learning_rate     = 0.001,
     weight_decay      = 1e-4,
