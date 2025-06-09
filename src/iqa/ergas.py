@@ -16,10 +16,14 @@ class ERGAS:
         if img1.dim() == 3 and img2.dim() == 3:
             img1 = img1.unsqueeze(0)
             img2 = img2.unsqueeze(0)
+        
+        img1 = img1.float()
+        img2 = img2.float()
+
         rmse = RMSE.evaluate(img1, img2)
-        mu = img1.float().mean(dim=(2, 3)).clamp(min=1e-6)
-        rel_sq = (rmse / mu).pow(2)
-        ergas = 100 * scale * torch.sqrt(rel_sq.mean(dim=1))
+        mu = img1.mean(dim=(2,3)).clamp(min=1e-6)
+
+        ergas = 100 / scale * torch.sqrt(((rmse / mu) ** 2).mean(dim=1))
 
         return ergas
 
