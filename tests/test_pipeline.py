@@ -8,7 +8,7 @@ from src.datasets.cifar10 import Cifar10
 from src.utils.randomness import set_seed
 from src.utils.torch_util import getDevice
 from pipeline import run_single_generation
-from config import ModelRegistry
+from config import ModelRegistry, AttackConfig
 
 
 class TestPipeline(unittest.TestCase):
@@ -28,8 +28,7 @@ class TestPipeline(unittest.TestCase):
         # (source_class, target_class, image_index)
         cls.test_meta = [(0, 1, 0), (1, 0, 1)]
 
-        cls.model = ModelRegistry.load_model(
-            "cifar10_resnet20", torch.device(cls.device)).eval()
+        cls.model = ModelRegistry.load_model("cifar10_resnet20", torch.device(cls.device)).eval()
 
     def test_single_generation(self):
         generation_config = {
@@ -47,7 +46,14 @@ class TestPipeline(unittest.TestCase):
             "_cached_model": self.model,
         }
 
-        results = run_single_generation(generation_config)
+        attack_config = AttackConfig(
+            name="fgsm",
+            epsilon=0.01,
+            alpha=0.01,
+            iterations=10,
+        )
+
+        results = run_single_generation(generation_config, attack_config)
 
         self.assertEqual(len(results), 2)
 

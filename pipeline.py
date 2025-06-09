@@ -21,8 +21,10 @@ from config import (
     validate_configuration,
 )
 
+ssim_evaluator = SSIM()
 
-def run_single_generation(generation_config):
+
+def run_single_generation(generation_config, attack_config):
     set_seed(generation_config["seed"] + generation_config.get("process_id", 0))
 
     requested_device = generation_config["device"]
@@ -34,18 +36,12 @@ def run_single_generation(generation_config):
 
     model = generation_config["_cached_model"]
     attack_function = AttackRegistry.get_attack_function(generation_config["attack_name"])
-    attack_config = AttackConfig(
-        generation_config["attack_name"],
-        generation_config["epsilon"],
-        generation_config["alpha"],
-        generation_config["iterations"],
-    )
     attack_parameters = attack_config.get_attack_kwargs()
     attack_parameters["break_early"] = True
 
     input_batch = generation_config["batch_cpu"]
     if device.type == "cuda":
-        input_batch = input_batch.pin_memory().to(device, non_blocking=True)
+        input_batch = input_batch.to(device, non_blocking=True)
     else:
         input_batch = input_batch.to(device)
 
@@ -82,8 +78,6 @@ def run_single_generation(generation_config):
         adversarial_outputs = model(perturbed_normalized)
         adversarial_predictions = adversarial_outputs.argmax(1).cpu().numpy()
         adversarial_probs = torch.softmax(adversarial_outputs, dim=1).cpu().numpy()
-
-    ssim_evaluator = SSIM()
 
     psnr_scores = PSNR.evaluate(input_batch, perturbed_normalized).cpu().numpy()
     ssim_scores = ssim_evaluator.evaluate(input_batch, perturbed_normalized).cpu().numpy()
@@ -133,27 +127,65 @@ def run_single_generation(generation_config):
     return generation_results
 
 
+def preprocess_batches(dataset, num_classes, num_images_per_class, batch_size):
+    all_images = []
+    all_metadata = []
+
+    for class_idx in tqdm(range(num_classes), desc="Loading images"):
+        image_indices = dataset.get_indices_from_class(class_idx, train=False, num_images=num_images_per_class)
+
+        for image_idx in image_indices:
+            sample = dataset.get_by_index(image_idx, train=False)
+            image = sample["tensor"].squeeze(0)
+
+            for target_class in range(num_classes):
+                if target_class != class_idx:
+                    all_images.append(image)
+                    all_metadata.append((class_idx, target_class, image_idx))
+
+    batches = []
+    for i in range(0, len(all_images), batch_size):
+        batch_images = all_images[i : i + batch_size]
+        batch_metadata = all_metadata[i : i + batch_size]
+
+        if batch_images:
+            batch_tensor = torch.stack(batch_images)
+            if torch.cuda.is_available():
+                batch_tensor = batch_tensor.pin_memory()
+            batches.append({"batch_cpu": batch_tensor, "meta": batch_metadata})
+
+    return batches
+
+
 def run_pipeline(config: GenerationConfig):
     os.makedirs(config.image_output_dir, exist_ok=True)
 
     dataset = DatasetRegistry.get_dataset_instance(config.dataset)
     num_classes = len(dataset.labels)
-    images = []
-    metadata = []
-    for class_idx in range(num_classes):
-        for image_idx in dataset.get_indices_from_class(class_idx, train=False, num_images=config.num_images_per_class):
-            sample = dataset.get_by_index(image_idx, train=False)
-            image = sample["tensor"].squeeze(0)
-            for target_class in range(num_classes):
-                if target_class != class_idx:
-                    images.append(image)
-                    metadata.append((class_idx, target_class, image_idx))
-    dataset_cache = {"batch_cpu": torch.stack(images), "meta": metadata}
+    all_results = []
 
-    experiment_groups = {}
-    for process_id, (model_name, attack_name) in enumerate(itertools.product(config.models, config.attacks)):
-        experiment_groups.setdefault(model_name, []).append(
-            {
+    preprocessing_start = time.time()
+    batches = preprocess_batches(dataset, num_classes, config.num_images_per_class, config.batch_size)
+    preprocessing_time = time.time() - preprocessing_start
+    print(f"\nPreprocessing completed in {preprocessing_time:.2f} seconds")
+
+    generation_start = time.time()
+    for model_name, attack_name in itertools.product(config.models, config.attacks):
+        model = ModelRegistry.load_model(model_name, torch.device(config.device)).eval()
+        attack_config = AttackConfig(
+            attack_name,
+            config.epsilon,
+            config.alpha,
+            config.iterations,
+        )
+
+        for batch in tqdm(batches, desc=f"Generating attacks for {model_name}/{attack_name}"):
+            if config.device == "cuda":
+                batch["batch_cpu"] = batch["batch_cpu"].to(config.device, non_blocking=True)
+            else:
+                batch["batch_cpu"] = batch["batch_cpu"].to(config.device)
+
+            generation_config = {
                 "model_name": model_name,
                 "dataset_name": config.dataset,
                 "attack_name": attack_name,
@@ -163,21 +195,23 @@ def run_pipeline(config: GenerationConfig):
                 "seed": config.seed,
                 "device": config.device,
                 "image_output_dir": config.image_output_dir,
-                "process_id": process_id,
-                **dataset_cache,
+                "process_id": 0,
+                "_cached_model": model,
+                **batch,
             }
-        )
 
-    all_results = []
-    for model_name, experiment_configs in experiment_groups.items():
-        model = ModelRegistry.load_model(model_name, torch.device(config.device)).eval()
-        for exp_config in experiment_configs:
-            exp_config["_cached_model"] = model
-        for exp_config in tqdm(experiment_configs, desc=f"{model_name}/{attack_name}"):
-            all_results.extend(run_single_generation(exp_config))
+            batch_results = run_single_generation(generation_config, attack_config)
+            all_results.extend(batch_results)
+
+            if config.device == "cuda":
+                torch.cuda.empty_cache()
+
         del model
         if config.device == "cuda":
             torch.cuda.empty_cache()
+
+    generation_time = time.time() - generation_start
+    print(f"Generated {len(all_results)} attacks in {generation_time:.2f} seconds")
 
     results_df = pd.DataFrame(all_results)
     if config.metadata_output_path:
@@ -189,6 +223,9 @@ def run_pipeline(config: GenerationConfig):
 
 if __name__ == "__main__":
     start_time = time.time()
+
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
 
     parser = create_argument_parser()
     args = parser.parse_args()

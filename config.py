@@ -63,6 +63,7 @@ class GenerationConfig:
     image_output_dir: str
     metadata_output_path: str
     seed: int
+    batch_size: int
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -226,6 +227,12 @@ def create_argument_parser() -> argparse.ArgumentParser:
         default=40,
         help="Number of iterations for iterative attacks (applies to FGSM, PGD iterations, and CW steps).",
     )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=512,
+        help="Number of images to process in each batch.",
+    )
 
     # Execution parameters
     parser.add_argument(
@@ -275,6 +282,7 @@ def parse_args_to_config(args: argparse.Namespace) -> GenerationConfig:
         image_output_dir=args.image_dir,
         metadata_output_path=args.metadata_output,
         seed=args.seed,
+        batch_size=args.batch_size,
     )
 
 
