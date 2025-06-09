@@ -9,6 +9,7 @@
 1. Execute the environment-file
    ```sh
    conda env create -f environment.yml
+   conda activate AdvAttacks
    ```
 
 ## Alternative Setup
