@@ -2,7 +2,8 @@ import os, torch, wandb
 import torch.distributed as dist
 from torch import nn, optim
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast
+from torch.cuda.amp import GradScaler
 from src.utils.torch_util import getDevice
 from src.finetuning.configs.base_finetune import train_cfg, wandb_cfg
 
@@ -70,6 +71,7 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
 
     best = 0.0
     for epoch in range(train_cfg["epochs"]):
+        print(f'Epoch {epoch} begun.')
         sampler = getattr(train_loader, "sampler", None)
         if isinstance(sampler, torch.utils.data.distributed.DistributedSampler):
             sampler.set_epoch(epoch)
@@ -79,7 +81,7 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
         for x, y in train_loader:
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
             opt.zero_grad(set_to_none=True)
-            with autocast(enabled=train_cfg.get("amp", True)):
+            with autocast(device_type=device.type,enabled=train_cfg.get("amp", True)):
                 preds = model(x)
                 loss  = loss_fn(preds, y)
             scaler.scale(loss).backward()
@@ -90,13 +92,14 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
             tr_total   += y.size(0)
 
         # val acc
+        print('Calculating validation accuracy...')
         sched.step()
         model.eval()
         val_loss = val_correct = val_total = 0
         with torch.no_grad():
             for x, y in val_loader:
                 x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
-                with autocast(enabled=train_cfg.get("amp", True)):
+                with autocast(device_type=device.type,enabled=train_cfg.get("amp", True)):
                     preds = model(x)
                     loss  = loss_fn(preds, y)
                 val_loss   += loss.item() * y.size(0)
