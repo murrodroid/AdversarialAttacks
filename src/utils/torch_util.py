@@ -1,9 +1,14 @@
 import torch
 import torchvision.transforms.functional as TF
-from src.datasets.cifar10 import Cifar10
 from PIL import Image
-from src.datasets.imagenet import ImageNet100
 import os
+import lzma
+import pathlib
+import shutil
+
+from src.finetuning.configs.base_finetune import train_cfg
+from src.datasets.imagenet import ImageNet100
+from src.datasets.cifar10 import Cifar10
 
 
 def getDevice() -> torch.device:
@@ -110,3 +115,11 @@ def normalize_tensor(tensor, dataset_name):
             f"Warning: Error during normalization for {dataset_name}: {e}. Returning original tensor."
         )
         return tensor
+
+def save_compressed(file_path: str | pathlib.Path, level: int = 9):
+    src = pathlib.Path(file_path).expanduser().resolve()
+    dst = src.with_suffix(src.suffix + ".xz")          # model.pt → model.pt.xz
+    if dst.exists():
+        return                                          # already compressed
+    with open(src, "rb") as fp_in, lzma.open(dst, "wb", preset=level) as fp_out:
+        shutil.copyfileobj(fp_in, fp_out) 
