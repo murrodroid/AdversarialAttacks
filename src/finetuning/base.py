@@ -121,7 +121,7 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
                 best = epoch_stats["val_acc"]
                 train_cfg["save_dir"].mkdir(parents=True, exist_ok=True)
                 torch.save(model.module.state_dict() if distributed else model.state_dict(),
-                           train_cfg["save_dir"] / "best.pt")
+                           train_cfg["save_dir"] / f"{train_cfg['model_name']}.pt")
     # end
     if rank == 0: wandb.finish()
     if distributed: dist.destroy_process_group()

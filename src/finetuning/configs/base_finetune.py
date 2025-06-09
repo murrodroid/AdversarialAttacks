@@ -3,10 +3,13 @@ from datetime import datetime
 
 run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
 
-#eksempel til resnet50 finetuning til imagenet100
+models = ['mobilenet','resnet','swin']
+
+model = models[2] # input
+
 
 train_cfg = dict(
-    model_name        = "resnet",
+    model_name        = model,
     output_dim        = 100,
     finetune_all_layers = False,
 
@@ -18,15 +21,15 @@ train_cfg = dict(
 
     workers           = 8,
     amp               = True,
-    save_dir          = Path("checkpoints") / f"resnet50-{run_id}",
+    save_dir          = Path("checkpoints") / f"{model}100-{run_id}",
 
-    dataset_root        = Path("/data/imagenet100"),
+    dataset_root        = Path(f"/data/{model}100"),
 )
 wandb_cfg = dict(
     project  = "adversarialAttacks",
     entity   = None,   
     mode     = "online", 
-    run_name = f"resnet50_{run_id}",
+    run_name = f"{model}100_{run_id}",
 )
 
 runs_root   = Path("finetune_results/base_finetune")     # top-level folder
