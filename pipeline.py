@@ -7,15 +7,15 @@ import time
 import os
 
 from src.utils.randomness import set_seed
-from src.utils.torch_util import tensor_to_pil
+from src.utils.torch_util import tensor_to_pil, unnormalize_tensor, normalize_tensor
 from src.iqa import ERGAS, PSNR, SSIM
 
 from config import (
     ModelRegistry,
     DatasetRegistry,
     AttackRegistry,
-    GenerationConfig,
     AttackConfig,
+    GenerationConfig,
     create_argument_parser,
     parse_args_to_config,
     validate_configuration,
@@ -34,12 +34,13 @@ def run_single_generation(generation_config):
 
     model = generation_config["_cached_model"]
     attack_function = AttackRegistry.get_attack_function(generation_config["attack_name"])
-    attack_parameters = AttackConfig(
+    attack_config = AttackConfig(
         generation_config["attack_name"],
         generation_config["epsilon"],
         generation_config["alpha"],
         generation_config["iterations"],
-    ).get_attack_kwargs()
+    )
+    attack_parameters = attack_config.get_attack_kwargs()
     attack_parameters["break_early"] = True
 
     input_batch = generation_config["batch_cpu"]
@@ -48,26 +49,58 @@ def run_single_generation(generation_config):
     else:
         input_batch = input_batch.to(device)
 
+    if attack_config.needs_unnormalized_tensors():
+        attack_input_batch = unnormalize_tensor(
+            input_batch, generation_config["dataset_name"]
+        )
+    else:
+        attack_input_batch = input_batch
+
     with torch.no_grad():
         original_outputs = model(input_batch)
         original_predictions = original_outputs.argmax(1).cpu().numpy()
         original_probs = torch.softmax(original_outputs, dim=1).cpu().numpy()
 
-    perturbed_images, attack_success, first_success_iteration, first_output, final_output = attack_function(
-        model, input_batch, [target for (_, target, _) in generation_config["meta"]], **attack_parameters
+    (
+        perturbed_images,
+        attack_success,
+        first_success_iteration,
+        first_output,
+        final_output,
+    ) = attack_function(
+        model,
+        attack_input_batch,
+        [target for (_, target, _) in generation_config["meta"]],
+        **attack_parameters,
     )
     perturbed_images = perturbed_images.detach()
 
+    if attack_config.needs_unnormalized_tensors():
+        perturbed_normalized = normalize_tensor(
+            perturbed_images, generation_config["dataset_name"]
+        )
+    else:
+        perturbed_normalized = perturbed_images
+
     with torch.no_grad():
-        adversarial_outputs = model(perturbed_images)
+        adversarial_outputs = model(perturbed_normalized)
         adversarial_predictions = adversarial_outputs.argmax(1).cpu().numpy()
         adversarial_probs = torch.softmax(adversarial_outputs, dim=1).cpu().numpy()
 
     ssim_evaluator = SSIM()
 
-    psnr_scores = PSNR.evaluate(input_batch, perturbed_images).cpu().numpy()
-    ssim_scores = ssim_evaluator.evaluate(input_batch, perturbed_images).cpu().numpy()
-    ergas_scores = ERGAS.evaluate(input_batch, perturbed_images).cpu().numpy()
+    psnr_scores = PSNR.evaluate(input_batch, perturbed_normalized).cpu().numpy()
+    ssim_scores = (
+        ssim_evaluator.evaluate(input_batch, perturbed_normalized).cpu().numpy()
+    )
+    ergas_scores = ERGAS.evaluate(input_batch, perturbed_normalized).cpu().numpy()
+
+    if attack_config.needs_unnormalized_tensors():
+        images_to_save = normalize_tensor(
+            perturbed_images, generation_config["dataset_name"]
+        )
+    else:
+        images_to_save = perturbed_images
 
     output_paths = [
         f"{generation_config['image_output_dir']}/adv_{generation_config['attack_name']}_src{source}_tgt{target}_idx{index}.png"
@@ -76,7 +109,7 @@ def run_single_generation(generation_config):
 
     with ThreadPoolExecutor() as executor:
         for i, (_, _, _) in enumerate(generation_config["meta"]):
-            adversarial_image = perturbed_images[i]
+            adversarial_image = images_to_save[i]
             output_path = output_paths[i]
             executor.submit(
                 lambda img=adversarial_image, path=output_path: tensor_to_pil(

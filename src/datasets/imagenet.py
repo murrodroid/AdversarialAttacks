@@ -82,6 +82,17 @@ class ImageNet100(Dataset):
         self.num_classes = self.dataset.features["label"].num_classes
         self.labels = list(range(self.num_classes))
 
+    @staticmethod
+    def inverse_transforms(tensor):
+        """Convert normalized ImageNet tensor back to [0,1] range."""
+        inv_mean = [
+            -m / s for m, s in zip([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]
+        inv_std = [1 / s for s in [0.229, 0.224, 0.225]]
+
+        transform = T.Compose([T.Normalize(tuple(inv_mean), tuple(inv_std))])
+        return transform(tensor)
+
     def __len__(self):
         """
         Returns the total number of samples in the dataset.

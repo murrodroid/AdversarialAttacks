@@ -42,6 +42,10 @@ class AttackConfig:
 
         return kwargs
 
+    def needs_unnormalized_tensors(self) -> bool:
+        """Return True if this attack requires unnormalized tensors in [0,1] range."""
+        return self.name == "cw"
+
 
 @dataclass
 class GenerationConfig:
@@ -167,28 +171,29 @@ def create_argument_parser() -> argparse.ArgumentParser:
     )
 
     # Model configuration
-    default_models = ModelRegistry.get_available_models()[0:1]
+    default_models = ModelRegistry.get_available_models()[-1]
     parser.add_argument(
         "--model",
         type=str,
-        default=default_models,
+        default=[default_models],
         nargs="+",
         choices=ModelRegistry.get_available_models(),
         help="Select one or more model architectures to use.",
     )
 
     # Dataset configuration
+    default_dataset = DatasetRegistry.get_available_datasets()[0]
     parser.add_argument(
         "--dataset",
         type=str,
-        default=["imagenet100"],
+        default=[default_dataset],
         nargs="+",
         choices=DatasetRegistry.get_available_datasets(),
         help="Select one or more datasets to use.",
     )
 
     # Attack configuration
-    default_attacks = AttackRegistry.get_available_attacks()[:3]
+    default_attacks = AttackRegistry.get_available_attacks()
     parser.add_argument(
         "--attack",
         type=str,
