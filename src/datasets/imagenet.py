@@ -1,6 +1,7 @@
 import torch
 import os
 import shutil
+import tempfile
 from datasets import load_from_disk, load_dataset
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 import torchvision.transforms as T
@@ -24,7 +25,7 @@ def load_imagenet100():
     os.makedirs(os.path.dirname(final_dataset_path), exist_ok=True)
     print(f"Ensured data directory exists at: {os.path.dirname(final_dataset_path)}")
 
-    temp_cache_dir = "C:\\cache_imagenet100"
+    temp_cache_dir = os.path.join(tempfile.gettempdir(), "cache_imagenet100")
     os.makedirs(temp_cache_dir, exist_ok=True)
     print(f"Ensured cache directory exists at: {temp_cache_dir}")
 
@@ -209,8 +210,12 @@ if __name__ == "__main__":
 
     # We want to test the getitem method for two samples
     for i in range(2):
-        img, label = train_dataset[i]
-        print(f"Sample {i} from train dataset: Image shape: {img['tensor'].shape}, Label: {label.item()}")
+        sample = train_dataset[i]
+        print(
+            f"Sample {i} from train dataset: Image shape: {sample['tensor'].shape}, Label: {sample['label']}"
+        )
     for i in range(2):
-        img, label = val_dataset[i]
-        print(f"Sample {i} from test dataset: Image shape: {img['tensor'].shape}, Label: {label.item()}")
+        sample = val_dataset[i]
+        print(
+            f"Sample {i} from test dataset: Image shape: {sample['tensor'].shape}, Label: {sample['label']}"
+        )
