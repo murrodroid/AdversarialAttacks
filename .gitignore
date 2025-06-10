@@ -3,3 +3,5 @@
 data
 .vscode/settings.json
 tests/results
+wandb
+checkpoints

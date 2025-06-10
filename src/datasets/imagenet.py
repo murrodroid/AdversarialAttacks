@@ -5,6 +5,7 @@ import tempfile
 from datasets import load_from_disk, load_dataset
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 import torchvision.transforms as T
+from .dataset_base import DatasetBase
 
 
 def get_repo_root():
@@ -50,8 +51,10 @@ def load_imagenet100():
     return final_dataset_path
 
 
-class ImageNet100(Dataset):
+class ImageNet100(DatasetBase):
     def __init__(self, root_dir=None, train=False, validation=False):
+        super().__init__()
+
         if root_dir is None:
             root_dir = load_imagenet100()
 
@@ -60,28 +63,60 @@ class ImageNet100(Dataset):
         self.dire = os.path.join(self.root_dir, split_name)
         self.dataset = load_from_disk(self.dire)
 
-        self.transforms = (
-            T.Compose(
-                [
-                    T.RandomResizedCrop(224),
-                    T.RandomHorizontalFlip(),
-                    T.ToTensor(),
-                    T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                ]
-            )
-            if train
-            else T.Compose(
-                [
-                    T.Resize(256),
-                    T.CenterCrop(224),
-                    T.ToTensor(),
-                    T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                ]
-            )
+        # Store train/validation state
+        self.is_train = train
+        self.is_validation = validation
+
+        self.train_transforms = T.Compose(
+            [
+                T.RandomResizedCrop(224),
+                T.RandomHorizontalFlip(),
+                T.ToTensor(),
+                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
+        self.val_transforms = T.Compose(
+            [
+                T.Resize(256),
+                T.CenterCrop(224),
+                T.ToTensor(),
+                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
         )
 
         self.num_classes = self.dataset.features["label"].num_classes
         self.labels = list(range(self.num_classes))
+
+    @staticmethod
+    def transforms(image):
+        """Apply dataset-specific transforms to an image (validation transforms by default)."""
+        transform = T.Compose(
+            [
+                T.Resize(256),
+                T.CenterCrop(224),
+                T.ToTensor(),
+                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
+        # Ensure image is RGB, as required by standard models
+        return transform(image.convert("RGB"))
+
+    @staticmethod
+    def transforms_train(image):
+        """Apply training-specific transforms to an image."""
+        transform = T.Compose(
+            [
+                T.RandomResizedCrop(224),
+                T.RandomHorizontalFlip(),
+                T.ToTensor(),
+                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
+        # Ensure image is RGB, as required by standard models
+        return transform(image.convert("RGB"))
 
     @staticmethod
     def inverse_transforms(tensor):
@@ -111,20 +146,35 @@ class ImageNet100(Dataset):
         label = item["label"]
 
         # 6. Apply transforms to the PIL image.
-        if self.transforms:
+        transforms_to_use = (
+            self.train_transforms if self.is_train else self.val_transforms
+        )
+        if transforms_to_use:
             # Ensure image is RGB, as required by standard models
-            image = self.transforms(image.convert("RGB"))
+            image = transforms_to_use(image.convert("RGB"))
 
-        return {"tensor": image, "label": label}
+        return image, label
+
+    def get_by_index(self, idx, train=False):
+        """Returns a sample dict given its index."""
+        item = self.dataset[idx]
+        image = item["image"]
+        label = item["label"]
+
+        # Apply transforms
+        if train:
+            tensor = self.__class__.transforms_train(image).unsqueeze(0)  # [1, C, H, W]
+        else:
+            tensor = self.__class__.transforms(image).unsqueeze(0)  # [1, C, H, W]
+        return {"tensor": tensor, "label": label, "index": idx}
 
     def get_indices_from_class(self, class_idx, train=False, num_images=None):
+        """Get indices of samples belonging to a specific class."""
         indices = [i for i, item in enumerate(self.dataset) if item["label"] == class_idx]
         if num_images is not None:
             indices = indices[:num_images]
         return indices
 
-    def get_by_index(self, idx, train=False):
-        return self.__getitem__(idx)
 
 def path_to_imagenet100():
     """
