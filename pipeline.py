@@ -6,10 +6,12 @@ import itertools
 import torch
 import time
 import os
+import wandb
 
 from src.utils.randomness import set_seed
 from src.utils.torch_util import tensor_to_pil, unnormalize_tensor, normalize_tensor
 from src.iqa import ERGAS, PSNR, SSIM
+
 
 from config import (
     ModelRegistry,
@@ -20,6 +22,7 @@ from config import (
     create_argument_parser,
     parse_args_to_config,
     validate_configuration,
+    create_wandb_config
 )
 
 ssim_evaluator = SSIM()
@@ -175,6 +178,17 @@ def preprocess_batches(dataset, num_classes, num_images_per_class, batch_size, w
 def run_pipeline(config: GenerationConfig):
     os.makedirs(config.image_output_dir, exist_ok=True)
 
+    wandb_cfg = create_wandb_config(config)
+    run = wandb.init(
+        project=wandb_cfg['project'],
+        name=wandb_cfg['name'],
+        entity=wandb_cfg['entity'],
+        mode=wandb_cfg['mode'],
+        job_type=wandb_cfg['job_type'],
+        tags=wandb_cfg['tags'],
+    )
+    step = 0
+
     dataset = DatasetRegistry.get_dataset_instance(config.dataset)
     num_classes = len(dataset.labels)
     all_results = []
@@ -217,6 +231,20 @@ def run_pipeline(config: GenerationConfig):
 
             batch_results = run_single_generation(generation_config, attack_config)
             all_results.extend(batch_results)
+            
+            wandb_df = pd.DataFrame(batch_results)
+            run.log(
+            {
+            "model": model,
+            "attack": attack_name,
+            "success_rate": wandb_df.attack_successful.mean(),
+            "mean_psnr": wandb_df.psnr_score.mean(),
+            "mean_ssim": wandb_df.ssim_score.mean(),
+            "mean_ergas": wandb_df.ergas_score.mean(),
+            "mean_first_iter": wandb_df.first_success_iter.dropna().mean(),
+            },
+            step=step,
+            )
 
             if config.device == "cuda":
                 torch.cuda.empty_cache()

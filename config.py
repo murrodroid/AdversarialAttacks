@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import torch
 import torchvision.models as models
 from dataclasses import dataclass
@@ -326,3 +327,30 @@ def validate_configuration(config: GenerationConfig) -> None:
             )
         elif num_gpus > config.parallel_processes:
             print(f"Info: {num_gpus} GPUs detected, but only using {config.parallel_processes} parallel processes.")
+
+def create_wandb_run(model, attack, dataset, hyper_cfg, mode="online", project="adversarialAttacks", entity=None):
+    run = wandb.init(
+        project=project,
+        entity=entity,
+        mode=mode,
+        name=f"{model}_{attack}_{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+        group=model,
+        job_type="attack",
+        tags=[attack, dataset],
+        config=hyper_cfg,
+    )
+    return run
+
+
+def create_wandb_config(gen_cfg: GenerationConfig):
+    run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    wandb_cfg = dict(
+        project  = "adversarialAttacks",
+        entity   = None,   
+        mode     = "online", 
+        name = f"testAttack_{run_id}",
+        tags = [*gen_cfg.attacks, *gen_cfg.models, gen_cfg.dataset],
+        job_type = 'attack',
+    )
+    return wandb_cfg
