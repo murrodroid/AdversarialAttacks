@@ -26,5 +26,7 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 100}):
     )
     ckpt   = Path('src/models/weights') / f'{name}.pt.xz'
     model = _replace_head(builders[name](weights=None), name, cfg)
-    model.load_state_dict(torch.load(ckpt, map_location=device), strict=True)
+    with lzma.open(ckpt, "rb") as f:
+        model.load_state_dict(torch.load(f, map_location=device), strict=True)
+
     return model.eval().to(device)
