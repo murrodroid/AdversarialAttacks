@@ -5,25 +5,28 @@ run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 models = ['mobilenet','resnet','swin']
 
-model = models[2] # input
 
+# ----- input -----
+model = models[0] 
+output_dim = 20
+# ----- ----- -----
 
 train_cfg = dict(
     model_name        = model,
-    output_dim        = 100,
+    output_dim        = output_dim,
     finetune_all_layers = False,
 
-    epochs            = 5,
-    batch_size        = 64,
+    epochs            = 8,
+    batch_size        = 256,
     learning_rate     = 0.001,
     weight_decay      = 1e-4,
     lr_scheduler      = "cosine",
 
     workers           = 8,
     amp               = True,
-    save_dir          = Path("checkpoints") / f"{model}100-{run_id}",
+    save_dir          = Path("checkpoints") / f"{model}{output_dim}-{run_id}",
 
-    dataset_root        = Path(f"/data/{model}100"),
+    dataset_root        = Path(f"/data/{model}{output_dim}"),
 )
 wandb_cfg = dict(
     project  = "adversarialAttacks",
