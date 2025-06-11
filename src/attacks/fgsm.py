@@ -39,7 +39,7 @@ def fgsm_attack(model: object, source_image: Tensor, target_class: list, epsilon
         with torch.no_grad():
             pert += epsilon * pert.grad.sign()
             delta = pert - source_image
-            pert = source_image + delta.clamp(-epsilon * 10, epsilon * 10)
+            pert = source_image + delta.clamp(-epsilon, epsilon)
         pert.requires_grad_(True)
     else:
         final_out = [probs[j].detach().cpu().numpy().tolist()
