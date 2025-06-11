@@ -191,13 +191,14 @@ def path_to_imagenet100():
 
     return data_directory
 
-def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8,train_cfg = None):
+def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8, train_cfg = None):
     """
     Returns (train_loader, val_loader) for ImageNet100.
     Automatically wraps in DistributedSampler if DDP is active.
     """
-    if not train_cfg['using_hpc']:
-        root_dir = path_to_imagenet100()
+    if train_cfg:
+        if not train_cfg['using_hpc']:
+            root_dir = path_to_imagenet100()
     root_dir = Path('/work3/s234805/data/imagenet100/')
     
     world_size = (
