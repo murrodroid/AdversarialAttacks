@@ -12,6 +12,8 @@ output_dim = 20
 # ----- ----- -----
 
 train_cfg = dict(
+    using_hpc = False,
+
     model_name        = model,
     output_dim        = output_dim,
     finetune_all_layers = False,
