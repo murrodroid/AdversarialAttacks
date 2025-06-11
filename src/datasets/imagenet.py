@@ -177,6 +177,10 @@ class ImageNet100(DatasetBase):
             indices = indices[:num_images]
         return indices
 
+    def get_all_labels(self, train=False):
+        """Returns a list of all labels for a given split."""
+        return self.dataset["label"]
+
 
 def path_to_imagenet100():
     """

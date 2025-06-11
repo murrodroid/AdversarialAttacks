@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 import pandas as pd
 import itertools
@@ -8,6 +8,7 @@ import time
 import os
 import wandb
 
+from src.datasets.dataset_base import AdvDataset
 from src.utils.randomness import set_seed
 from src.utils.torch_util import tensor_to_pil, unnormalize_tensor, normalize_tensor
 from src.iqa import ERGAS, PSNR, SSIM
@@ -23,7 +24,7 @@ from config import (
     get_config,
     parse_args_to_config,
     validate_configuration,
-    create_wandb_config
+    create_wandb_config,
 )
 
 ssim_evaluator = SSIM()
@@ -131,48 +132,24 @@ def run_single_generation(generation_config, attack_config):
         )
     return generation_results
 
-
-class AdvDataset(Dataset):
-    def __init__(self, dataset, num_classes, num_images_per_class):
-        self.dataset = dataset
-        labels = [item["label"] for item in dataset.dataset]
-        by_class = {c: [] for c in range(num_classes)}
-        for i, lbl in enumerate(tqdm(labels, desc="Gathering samples")):
-            if len(by_class[lbl]) < num_images_per_class:
-                by_class[lbl].append(i)
-        self.samples = [
-            (src, tgt, idx)
-            for src in range(num_classes)
-            for tgt in range(num_classes)
-            if tgt != src
-            for idx in by_class[src]
-        ]
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, i):
-        src, tgt, idx = self.samples[i]
-        img = self.dataset.get_by_index(idx, train=False)["tensor"].squeeze(0)
-        return img, (src, tgt, idx)
-
-
-def preprocess_batches(dataset, num_classes, num_images_per_class, batch_size, workers=8):
+def preprocess_batches(
+    dataset, num_classes, num_images_per_class, batch_size, workers=8
+):
+    """Create batches directly from cached tensors - simplified and fast"""
     ds = AdvDataset(dataset, num_classes, num_images_per_class)
-    loader = DataLoader(
-        ds,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=workers,
-        pin_memory=False,
-        persistent_workers=True,
-    )
-    total = (len(ds) + batch_size - 1) // batch_size
+
+    print("Creating batches from cached tensors...")
     batches = []
-    for imgs, metas in tqdm(loader, desc="Loading batches", total=total):
-        srcs, tgts, idxs = metas
-        meta_list = [(int(s), int(t), int(i)) for s, t, i in zip(srcs, tgts, idxs)]
-        batches.append({"batch_cpu": imgs, "meta": meta_list})
+
+    for i in range(0, len(ds.samples), batch_size):
+        batch_samples = ds.samples[i : i + batch_size]
+
+        batch_tensors = [ds.cached_tensors[idx] for _, _, idx in batch_samples]
+        batch_tensor = torch.stack(batch_tensors)
+
+        batches.append({"batch_cpu": batch_tensor, "meta": batch_samples})
+
+    print(f"Created {len(batches)} batches with batch size {batch_size}")
     return batches
 
 
@@ -271,7 +248,7 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    config = get_config("cifar10")
+    config = get_config("imagenet100")
 
     validate_configuration(config)
 

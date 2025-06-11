@@ -75,3 +75,8 @@ class Cifar10(DatasetBase):
         if num_images is not None:
             indices = indices[:num_images]
         return indices
+
+    def get_all_labels(self, train=False):
+        """Returns a list of all labels for a given split."""
+        data = self.train_data if train else self.test_data
+        return data.targets

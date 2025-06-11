@@ -363,22 +363,20 @@ def get_config(dataset, GB_vram = getVRAM()) -> GenerationConfig:
     if dataset not in DatasetRegistry.get_available_datasets():
         raise ValueError(f"Dataset '{dataset}' not recognized. Available datasets: {DatasetRegistry.get_available_datasets()}")
 
-    print(GB_vram)
     models = ["mobilenet", "resnet", "swin"] if dataset == "imagenet100" else ["cifar10_resnet20"]
     max_iterations = 100
     epsilon = default_epsilon[dataset]
     alpha = epsilon/max_iterations
     if GB_vram <= 4: 
+        batch_size = 16
+    elif 4 < GB_vram <= 8:
         batch_size = 32
-    if 4 < GB_vram <= 8:
-        batch_size = 64
     else: 
         batch_size = 256
 
     if dataset == "cifar10": 
         batch_size *= 8
- 
-    
+
     return GenerationConfig(
         models=models,
         dataset=dataset,

@@ -62,6 +62,11 @@ class DatasetBase(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_all_labels(self, train=False):
+        """Returns a list of all labels for a given split."""
+        pass
+
     def get_class_name(self, class_id):
         """Get the class name for a given class ID."""
         if self.labels is None:
@@ -102,3 +107,56 @@ class DatasetBase(ABC):
 
             traceback.print_exc()
             return []
+
+
+class AdvDataset:
+    def __init__(self, dataset, num_classes, num_images_per_class):
+        self.dataset = dataset
+
+        labels = dataset.get_all_labels(train=False)
+        by_class = {c: [] for c in range(num_classes)}
+
+        for i, lbl in enumerate(labels):
+            if len(by_class[lbl]) < num_images_per_class:
+                by_class[lbl].append(i)
+
+        self.samples = [
+            (src, tgt, idx)
+            for src in range(num_classes)
+            for tgt in range(num_classes)
+            if tgt != src
+            for idx in by_class[src]
+        ]
+
+        print("Preloading tensors...")
+        self.cached_tensors = {}
+        unique_indices = {idx for _, _, idx in self.samples}
+
+        if hasattr(dataset, "test_data") and hasattr(dataset.test_data, "data"):
+            self._cache_from_raw_data(dataset, unique_indices)
+        else:
+            self._cache_from_dataset(dataset, unique_indices)
+
+        print(
+            f"Cached {len(self.cached_tensors)} tensors, created {len(self.samples)} samples"
+        )
+
+    def _cache_from_raw_data(self, dataset, indices):
+        import torchvision.transforms.functional as TF
+
+        data = dataset.test_data.data  # (N, H, W, C) numpy array
+        for idx in indices:
+            img_np = data[idx]  # (H, W, C)
+            tensor = (
+                torch.from_numpy(img_np).permute(2, 0, 1).float() / 255.0
+            )  # (C, H, W)
+            tensor = TF.normalize(
+                tensor, (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+            )
+            self.cached_tensors[idx] = tensor
+
+    def _cache_from_dataset(self, dataset, indices):
+        """Cache tensors using dataset's get_by_index method"""
+        for idx in indices:
+            tensor = dataset.get_by_index(idx, train=False)["tensor"].squeeze(0)
+            self.cached_tensors[idx] = tensor
