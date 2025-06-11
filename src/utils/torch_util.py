@@ -19,6 +19,14 @@ def getDevice() -> torch.device:
         return torch.device("mps")
     return torch.device("cpu")
 
+def getVRAM() -> int: 
+    if torch.cuda.is_available():
+        props = torch.cuda.get_device_properties(0)
+        total_gb = props.total_memory / 1024**3
+        return round(total_gb)
+    else: 
+        return 4
+
 def tensor_to_pil(tensor, dataset_name):
     """
     Converts a tensor (potentially normalized) back to a PIL Image.

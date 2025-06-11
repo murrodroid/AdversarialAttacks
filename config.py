@@ -12,6 +12,7 @@ from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
 from src.attacks.cw import cw_attack
 from src.models.get_model import get_model, get_finetuned_model
+from src.utils.torch_util import getVRAM
 
 
 @dataclass
@@ -353,4 +354,43 @@ def create_wandb_config(gen_cfg: GenerationConfig):
         tags = [*gen_cfg.attacks, *gen_cfg.models, gen_cfg.dataset],
         job_type = 'attack',
     )
-    return wandb_cfg
+    return wandb_cfg 
+
+default_epsilon = {"imagenet100":4/255, "cifar10": 8/255}
+
+def get_config(dataset, GB_vram = getVRAM()) -> GenerationConfig:
+    """Get a default configuration for the generation pipeline."""
+    if dataset not in DatasetRegistry.get_available_datasets():
+        raise ValueError(f"Dataset '{dataset}' not recognized. Available datasets: {DatasetRegistry.get_available_datasets()}")
+
+    print(GB_vram)
+    models = ["mobilenet", "resnet", "swin"] if dataset == "imagenet100" else ["cifar10_resnet20"]
+    max_iterations = 100
+    epsilon = default_epsilon[dataset]
+    alpha = epsilon/max_iterations
+    if GB_vram <= 4: 
+        batch_size = 32
+    if 4 < GB_vram <= 8:
+        batch_size = 64
+    else: 
+        batch_size = 256
+
+    if dataset == "cifar10": 
+        batch_size *= 8
+ 
+    
+    return GenerationConfig(
+        models=models,
+        dataset=dataset,
+        attacks=["fgsm", "pgd", "cw"],
+        epsilon = epsilon,
+        alpha = alpha,
+        iterations=40,
+        num_images_per_class=1,
+        parallel_processes=max(1, cpu_count() // 2),
+        device=None,  # Will default to cuda if available
+        image_output_dir="results/adversarial_images",
+        metadata_output_path="results/generation_metadata.csv",
+        seed=42,
+        batch_size= batch_size,
+    )

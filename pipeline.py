@@ -20,6 +20,7 @@ from config import (
     AttackConfig,
     GenerationConfig,
     create_argument_parser,
+    get_config,
     parse_args_to_config,
     validate_configuration,
     create_wandb_config
@@ -270,10 +271,7 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    parser = create_argument_parser()
-    args = parser.parse_args()
-
-    config = parse_args_to_config(args)
+    config = get_config("cifar10")
 
     validate_configuration(config)
 
