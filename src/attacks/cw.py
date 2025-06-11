@@ -8,6 +8,7 @@ def cw_attack(
     model: object,
     source_image: Tensor,
     target_class: list,
+    epsilon: float = 0.03,
     lr: float = 0.01,
     steps: int = 10,
     c: float = 1.0,
@@ -48,7 +49,9 @@ def cw_attack(
     # Loop for optimizing the adversarial example
     for i in range(steps):
         # tahn reparameterization trick - ensures adversarial image stays in range [0,1]
-        x_adv = 0.5 * (torch.tanh(w) + 1)
+        x_adv_unclipped = 0.5 * (torch.tanh(w) + 1)
+        delta = torch.clamp(x_adv_unclipped - source_image, min=-epsilon, max=epsilon)
+        x_adv = torch.clamp(source_image + delta, 0, 1) 
 
         # Feed adversarial image into model
         output = model(x_adv)

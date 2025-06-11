@@ -217,6 +217,7 @@ class TestAttackMethods(unittest.TestCase):
         break_early = True
         c = 1
         kappa = 0.0
+        epsilon = default_epsilon["cifar10"]
 
         original = self.test_tensor_unnorm
         target_classes = self.target_classes
@@ -231,6 +232,7 @@ class TestAttackMethods(unittest.TestCase):
             self.model,
             original,
             target_classes,
+            epsilon,
             lr=lr,
             steps=max_iter,
             c=c,

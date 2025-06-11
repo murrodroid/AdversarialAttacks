@@ -367,6 +367,7 @@ def get_config(dataset, GB_vram = getVRAM()) -> GenerationConfig:
     max_iterations = 100
     epsilon = default_epsilon[dataset]
     alpha = epsilon/max_iterations
+    
     if GB_vram <= 4: 
         batch_size = 16
     elif 4 < GB_vram <= 8:
