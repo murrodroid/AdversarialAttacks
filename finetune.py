@@ -12,6 +12,7 @@ def main() -> None:
     train_loader,val_loader = create_imagenet100_loaders(
         batch_size=train_cfg["batch_size"],
         workers=train_cfg["workers"],
+        train_cfg=train_cfg
         )
     finetune(
         model=model,

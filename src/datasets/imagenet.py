@@ -7,7 +7,6 @@ from torch.utils.data import Dataset, DataLoader, DistributedSampler
 import torchvision.transforms as T
 from pathlib import Path
 
-from src.finetuning.configs.base_finetune import train_cfg
 from .dataset_base import DatasetBase
 
 
@@ -192,7 +191,7 @@ def path_to_imagenet100():
 
     return data_directory
 
-def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8):
+def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8,train_cfg = None):
     """
     Returns (train_loader, val_loader) for ImageNet100.
     Automatically wraps in DistributedSampler if DDP is active.
@@ -221,7 +220,7 @@ def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8):
     else:
         train_sampler = None
         val_sampler = None
-
+    
     per_gpu_bs = batch_size // world_size
 
     train_loader = DataLoader(
