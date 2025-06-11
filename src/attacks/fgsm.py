@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch import Tensor
 import numpy as np
 
-
+@torch.compile(backend="eager")
 def fgsm_attack(model: object, source_image: Tensor, target_class: list, epsilon: float = 0.1, max_iters: int = 100, break_early: bool = False) -> tuple[Tensor, list[bool], list[int | None], list[list[float] | None], list[list[float]]]:
     pert = source_image.clone().detach().requires_grad_(True)
     target = torch.tensor(target_class, device=pert.device)

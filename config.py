@@ -109,6 +109,7 @@ class ModelRegistry:
             raise ValueError(f"Model '{model_name}' not recognized. Available: {cls.get_available_models()}")
 
         model = cls._MODELS[model_name]()
+        model = torch.compile(model,backend = "eager")
         model = model.to(device)
         model.eval()
         return model

@@ -3,7 +3,6 @@ import torch.nn as nn
 from torch import Tensor
 import numpy as np
 
-
 def cw_attack(
     model: object,
     source_image: Tensor,

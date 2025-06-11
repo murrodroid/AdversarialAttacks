@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-
+@torch.compile(backend = "eager")
 def pgd_attack(model: object, source_image: Tensor, target_class: list, epsilon=0.3, alpha=0.01, max_iter=100, break_early: bool = False):
     perturbed_image = source_image.clone().detach(
     ) + torch.empty_like(source_image).uniform_(-epsilon/2, epsilon/2)
