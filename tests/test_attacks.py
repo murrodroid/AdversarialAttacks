@@ -13,6 +13,7 @@ from src.attacks.cw import cw_attack
 from src.utils.torch_util import getDevice
 from src.utils.randomness import set_seed
 from adversarialAttack import load_model
+from config import default_epsilon
 
 
 class TestAttackMethods(unittest.TestCase):
@@ -93,7 +94,7 @@ class TestAttackMethods(unittest.TestCase):
 
     def test_fgsm_epsilon_bounds(self):
         """Test that FGSM respects epsilon bounds."""
-        epsilon = 0.01
+        epsilon = default_epsilon["cifar10"]
         max_iters = 10
         break_early = True
         original = self.test_tensor.clone()
@@ -151,9 +152,9 @@ class TestAttackMethods(unittest.TestCase):
 
     def test_pgd_convergence(self):
         """Test that PGD attack converges or reaches max iterations."""
-        epsilon = 0.1
-        alpha = 0.01
+        epsilon = default_epsilon["cifar10"]
         max_iter = 10
+        alpha = epsilon/max_iter
         break_early = True
 
         original = self.test_tensor.clone()
