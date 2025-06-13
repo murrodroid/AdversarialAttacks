@@ -1,0 +1,15 @@
+{
+  "timestamp": "20250613-120217",
+  "model_name": "mobilenet",
+  "test_accuracy": 0.9787287287287287,
+  "test_loss": 0.08501339457683019,
+  "training_config": {
+    "epochs": 4,
+    "batch_size": 128,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "finetune_all_layers": false,
+    "output_dim": 20
+  },
+  "wandb_run_name": "mobilenet20_20250613-114522"
+}
