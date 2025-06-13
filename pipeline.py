@@ -156,16 +156,16 @@ def preprocess_batches(
 def run_pipeline(config: GenerationConfig):
     os.makedirs(config.image_output_dir, exist_ok=True)
 
-    # wandb_cfg = create_wandb_config(config)
-    # run = wandb.init(
-    #     project=wandb_cfg['project'],
-    #     name=wandb_cfg['name'],
-    #     entity=wandb_cfg['entity'],
-    #     mode=wandb_cfg['mode'],
-    #     job_type=wandb_cfg['job_type'],
-    #     tags=wandb_cfg['tags'],
-    # )
-    # step = 0
+    wandb_cfg = create_wandb_config(config)
+    run = wandb.init(
+        project=wandb_cfg['project'],
+        name=wandb_cfg['name'],
+        entity=wandb_cfg['entity'],
+        mode=wandb_cfg['mode'],
+        job_type=wandb_cfg['job_type'],
+        tags=wandb_cfg['tags'],
+    )
+    step = 0
 
     dataset = DatasetRegistry.get_dataset_instance(config.dataset)
     num_classes = len(dataset.labels)
@@ -209,20 +209,20 @@ def run_pipeline(config: GenerationConfig):
 
             batch_results = run_single_generation(generation_config, attack_config)
             all_results.extend(batch_results)
-            
-            # wandb_df = pd.DataFrame(batch_results)
-            # run.log(
-            # {
-            # "model": model,
-            # "attack": attack_name,
-            # "success_rate": wandb_df.attack_successful.mean(),
-            # "mean_psnr": wandb_df.psnr_score.mean(),
-            # "mean_ssim": wandb_df.ssim_score.mean(),
-            # "mean_ergas": wandb_df.ergas_score.mean(),
-            # "mean_first_iter": wandb_df.first_success_iter.dropna().mean(),
-            # },
-            # step=step,
-            # )
+
+            wandb_df = pd.DataFrame(batch_results)
+            run.log(
+            {
+            "model": model,
+            "attack": attack_name,
+            "success_rate": wandb_df.attack_successful.mean(),
+            "mean_psnr": wandb_df.psnr_score.mean(),
+            "mean_ssim": wandb_df.ssim_score.mean(),
+            "mean_ergas": wandb_df.ergas_score.mean(),
+            "mean_first_iter": wandb_df.first_success_iter.dropna().mean(),
+            },
+            step=step,
+            )
 
             if config.device == "cuda":
                 torch.cuda.empty_cache()
