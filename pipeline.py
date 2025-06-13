@@ -120,7 +120,7 @@ def run_single_generation(generation_config, attack_config):
                 "original_pred_class": int(original_predictions[i]),
                 "adversarial_pred_class": int(adversarial_predictions[i]),
                 "first_success_iter": (first_success_iteration[i] if attack_success[i] else None),
-                "attack_successful": bool(attack_success[i]),
+                "attack_successful": int(adversarial_predictions[i]) == target_class,
                 "psnr_score": float(psnr_scores[i]),
                 "ssim_score": float(ssim_scores[i]),
                 "ergas_score": float(ergas_scores[i]),

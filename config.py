@@ -39,7 +39,7 @@ class AttackConfig:
                 "lr": 0.01,  # Learning rate for Adam optimizer
                 "steps": self.iterations,  # Number of optimization steps
                 "c": 10.0,  # Balance between adversarial loss and perturbation
-                "kappa": 0,  # Confidence margin
+                "kappa": 15,  # Confidence margin
             }
 
         return kwargs
@@ -385,8 +385,8 @@ def get_config(dataset, GB_vram = getVRAM()) -> GenerationConfig:
         attacks=["fgsm", "pgd", "cw"],
         epsilon = epsilon,
         alpha = alpha,
-        iterations=40,
-        num_images_per_class=1,
+        iterations=100,
+        num_images_per_class=10,
         parallel_processes=max(1, cpu_count() // 2),
         device=None,  # Will default to cuda if available
         image_output_dir="results/adversarial_images",
