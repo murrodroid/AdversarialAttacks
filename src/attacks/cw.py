@@ -79,14 +79,11 @@ def cw_attack(
         tmp[torch.arange(B), target] = -1e10
         other = tmp.max(dim=1).values
 
-        # misclassification loss (batched)
-        loss1 = torch.clamp(other - real + kappa, min=0).sum()
+        loss1 = torch.clamp(other - real + kappa, min=0)  # [B]
+        loss2 = (x_adv - source_image).pow(2).view(B, -1).sum(dim=1)  # [B]
+        loss = (c * loss1 + loss2).sum()
 
-        # squared loss between adversarial and original image (batched)
-        loss2 = (x_adv - source_image).pow(2).sum()
-
-        # objective function
-        loss = c * loss1 + loss2
+        
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()

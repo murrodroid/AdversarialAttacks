@@ -38,7 +38,7 @@ class AttackConfig:
             kwargs = {
                 "lr": 0.01,  # Learning rate for Adam optimizer
                 "steps": self.iterations,  # Number of optimization steps
-                "c": 1.0,  # Balance between adversarial loss and perturbation
+                "c": 10.0,  # Balance between adversarial loss and perturbation
                 "kappa": 0,  # Confidence margin
             }
 
