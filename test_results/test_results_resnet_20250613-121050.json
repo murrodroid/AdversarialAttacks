@@ -1,0 +1,15 @@
+{
+  "timestamp": "20250613-121050",
+  "model_name": "resnet",
+  "test_accuracy": 0.9812312312312312,
+  "test_loss": 0.439114222237775,
+  "training_config": {
+    "epochs": 4,
+    "batch_size": 128,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "finetune_all_layers": false,
+    "output_dim": 20
+  },
+  "wandb_run_name": "resnet20_20250613-114623"
+}
