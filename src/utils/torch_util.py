@@ -7,7 +7,7 @@ import pathlib
 import shutil
 
 from src.finetuning.configs.base_finetune import train_cfg
-from src.datasets.imagenet import ImageNet100
+from src.datasets.imagenet import ImageNet100, ImageNet20
 from src.datasets.cifar10 import Cifar10
 
 
@@ -75,6 +75,8 @@ def unnormalize_tensor(tensor, dataset_name):
             tensor = Cifar10.inverse_transforms(tensor)
         elif dataset_name == "imagenet100":
             tensor = ImageNet100.inverse_transforms(tensor)
+        elif dataset_name == "imagenet20":
+            tensor = ImageNet20.inverse_transforms(tensor)
         else:
             print(
                 f"Warning: Unknown dataset '{dataset_name}'. Assuming tensor is already unnormalized."
