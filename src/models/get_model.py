@@ -38,7 +38,7 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 100}):
         # Try to load the checkpoint
         try:
             with lzma.open(ckpt, "rb") as f:
-                state_dict = torch.load(f, map_location=device)
+                state_dict = torch.load(f, map_location=device, weights_only=True)
                 model.load_state_dict(state_dict, strict=True)
         except RuntimeError as e:
             if "size mismatch" in str(e):
@@ -46,7 +46,7 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 100}):
                 # load only the backbone weights
                 print(f"Size mismatch detected for {name}, loading backbone only...")
                 with lzma.open(ckpt, "rb") as f:
-                    state_dict = torch.load(f, map_location=device)
+                    state_dict = torch.load(f, map_location=device, weights_only=True)
                     model_state = model.state_dict()
 
                     # Copy weights that match in size
