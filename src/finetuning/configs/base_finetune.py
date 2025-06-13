@@ -31,14 +31,14 @@ train_cfg = dict(
     dataset_root        = Path(f"/data/{model}{output_dim}"),
 )
 wandb_cfg = dict(
-    project  = "adversarialAttacks",
-    entity   = None,   
-    mode     = "online", 
-    run_name = f"{model}100_{run_id}",
+    project="adversarialAttacks",
+    entity=None,
+    mode="online",
+    run_name=f"{model}20_{run_id}",
 )
 
 runs_root   = Path("finetune_results/base_finetune")     # top-level folder
-# run_dir     = runs_root / run_name          
+# run_dir     = runs_root / run_name
 # ckpt_dir    = run_dir / "checkpoints"
 # reports_dir = run_dir / "reports"
 # run_dir.mkdir(parents=True, exist_ok=True)

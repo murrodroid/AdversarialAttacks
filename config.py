@@ -7,7 +7,7 @@ from typing import Dict, List, Callable, Optional, Any
 from multiprocessing import cpu_count
 
 from src.datasets.cifar10 import Cifar10
-from src.datasets.imagenet import ImageNet100
+from src.datasets.imagenet import ImageNet100, ImageNet20
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
 from src.attacks.cw import cw_attack
@@ -96,6 +96,18 @@ class ModelRegistry:
         "cifar10_resnet20": lambda: torch.hub.load(
             "chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True
         ),
+        # ImageNet20 specific models
+        "mobilenet_imagenet20": lambda: get_finetuned_model(
+            "mobilenet", cfg={"output_dim": 20}
+        ),
+        "resnet_imagenet20": lambda: get_finetuned_model(
+            "resnet", cfg={"output_dim": 20}
+        ),
+        "swin_imagenet20": lambda: get_finetuned_model("swin", cfg={"output_dim": 20}),
+        # ImageNet100 specific models
+        "mobilenet_imagenet100": lambda: get_finetuned_model("mobilenet"),
+        "resnet_imagenet100": lambda: get_finetuned_model("resnet"),
+        "swin_imagenet100": lambda: get_finetuned_model("swin"),
     }
 
     @classmethod
@@ -124,7 +136,11 @@ class ModelRegistry:
 class DatasetRegistry:
     """Registry for available datasets."""
 
-    _DATASETS: Dict[str, Callable] = {"cifar10": Cifar10, "imagenet100": ImageNet100}
+    _DATASETS: Dict[str, Callable] = {
+        "cifar10": Cifar10,
+        "imagenet100": ImageNet100,
+        "imagenet20": ImageNet20,
+    }
 
     @classmethod
     def get_available_datasets(cls) -> List[str]:
@@ -366,7 +382,7 @@ def create_wandb_config(gen_cfg: GenerationConfig):
     )
     return wandb_cfg 
 
-default_epsilon = {"imagenet100":4/255, "cifar10": 8/255}
+default_epsilon = {"imagenet100": 4 / 255, "cifar10": 8 / 255, "imagenet20": 4 / 255}
 
 
 def get_config(
@@ -380,7 +396,13 @@ def get_config(
     if dataset not in DatasetRegistry.get_available_datasets():
         raise ValueError(f"Dataset '{dataset}' not recognized. Available datasets: {DatasetRegistry.get_available_datasets()}")
 
-    models = ["mobilenet", "resnet", "swin"] if dataset == "imagenet100" else ["cifar10_resnet20"]
+    if dataset == "imagenet100":
+        models = ["mobilenet_imagenet100", "resnet_imagenet100", "swin_imagenet100"]
+    elif dataset == "imagenet20":
+        models = ["mobilenet_imagenet20", "resnet_imagenet20", "swin_imagenet20"]
+    else:  # cifar10
+        models = ["cifar10_resnet20"]
+
     max_iterations = 100
     epsilon = default_epsilon[dataset]
     alpha = epsilon/max_iterations

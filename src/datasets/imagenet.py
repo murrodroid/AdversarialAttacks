@@ -204,7 +204,7 @@ def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8, train_cfg
         root_dir = Path('/work3/s234805/data/imagenet100/')
     else:
         root_dir = path_to_imagenet100()
-    
+
     world_size = (
         torch.distributed.get_world_size()
         if torch.distributed.is_available() and torch.distributed.is_initialized()
@@ -225,7 +225,178 @@ def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8, train_cfg
     else:
         train_sampler = None
         val_sampler = None
-    
+
+    per_gpu_bs = batch_size // world_size
+
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=per_gpu_bs,
+        sampler=train_sampler,
+        shuffle=(train_sampler is None),
+        num_workers=workers,
+        pin_memory=True,
+        drop_last=True,
+    )
+
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=per_gpu_bs,
+        sampler=val_sampler,
+        shuffle=False,
+        num_workers=workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+
+    return train_loader, val_loader
+
+
+class ImageNet20(ImageNet100):
+    """A subset of ImageNet100 containing only 20 selected classes."""
+
+    SELECTED_CLASSES = {
+        "green mamba": True,
+        "Doberman, Doberman pinscher": True,
+        "cocktail shaker": True,
+        "garter snake, grass snake": True,
+        "pineapple, ananas": True,
+        "American lobster, Northern lobster, Maine lobster, Homarus americanus": True,
+        "ambulance": True,
+        "cauliflower": True,
+        "pirate, pirate ship": True,
+        "safety pin": True,
+        "theater curtain, theatre curtain": True,
+        "red fox, Vulpes vulpes": True,
+        "slide rule, slipstick": True,
+        "walking stick, walkingstick, stick insect": True,
+        "obelisk": True,
+        "harmonica, mouth organ, harp, mouth harp": True,
+        "mousetrap": True,
+        "ski mask": True,
+        "laptop, laptop computer": True,
+        "Dutch oven": True,
+        "gasmask, respirator, gas helmet": True,
+    }
+
+    def __init__(self, root_dir=None, train=False, validation=False):
+        super().__init__(root_dir, train, validation)
+
+        # Get the original label names
+        original_label_names = self.dataset.features["label"].names
+
+        # Filter dataset to only include selected classes
+        selected_indices = []
+        original_labels_in_filtered = []
+
+        for idx, item in enumerate(self.dataset):
+            class_name = original_label_names[item["label"]]
+            if class_name in self.SELECTED_CLASSES:
+                selected_indices.append(idx)
+                if item["label"] not in original_labels_in_filtered:
+                    original_labels_in_filtered.append(item["label"])
+
+        # Create a new dataset with only selected classes
+        self.dataset = self.dataset.select(selected_indices)
+
+        # Update number of classes and labels
+        self.num_classes = len(self.SELECTED_CLASSES)
+        self.labels = list(self.SELECTED_CLASSES.keys())
+
+        # Create a mapping from original labels to new labels (0-19)
+        self.label_mapping = {}
+        for new_idx, class_name in enumerate(self.labels):
+            original_idx = original_label_names.index(class_name)
+            self.label_mapping[original_idx] = new_idx
+
+    def __getitem__(self, idx):
+        """Fetches the sample at the given index and applies transforms."""
+        item = self.dataset[idx]
+        image = item["image"]
+        original_label = item["label"]
+
+        # Map the original label to the new label space
+        label = self.label_mapping[original_label]
+
+        # Apply transforms to the PIL image
+        transforms_to_use = (
+            self.train_transforms if self.is_train else self.val_transforms
+        )
+        if transforms_to_use:
+            image = transforms_to_use(image.convert("RGB"))
+
+        return image, label
+
+    def get_by_index(self, idx, train=False):
+        """Returns a sample dict given its index."""
+        item = self.dataset[idx]
+        image = item["image"]
+        original_label = item["label"]
+        label = self.label_mapping[original_label]
+
+        # Apply transforms
+        if train:
+            tensor = self.__class__.transforms_train(image).unsqueeze(0)  # [1, C, H, W]
+        else:
+            tensor = self.__class__.transforms(image).unsqueeze(0)  # [1, C, H, W]
+        return {"tensor": tensor, "label": label, "index": idx}
+
+    def get_indices_from_class(self, class_idx, train=False, num_images=None):
+        """Get indices of samples belonging to a specific class."""
+        # Map the new class index back to the original class name
+        class_name = self.labels[class_idx]
+        original_class_idx = self.dataset.features["label"].names.index(class_name)
+
+        indices = [
+            i
+            for i, item in enumerate(self.dataset)
+            if item["label"] == original_class_idx
+        ]
+        if num_images is not None:
+            indices = indices[:num_images]
+        return indices
+
+    def get_all_labels(self, train=False):
+        """Returns a list of all labels for a given split."""
+        return [self.label_mapping[label] for label in self.dataset["label"]]
+
+
+def create_imagenet20_loaders(batch_size: int = 32, workers: int = 8, train_cfg={}):
+    """
+    Returns (train_loader, val_loader) for ImageNet20.
+    Automatically wraps in DistributedSampler if DDP is active.
+    """
+    if train_cfg and train_cfg.get("using_hpc", False):
+        root_dir = Path("/work3/s234805/data/imagenet100/")
+    else:
+        root_dir = path_to_imagenet100()
+
+    world_size = (
+        torch.distributed.get_world_size()
+        if torch.distributed.is_available() and torch.distributed.is_initialized()
+        else 1
+    )
+    rank = (
+        torch.distributed.get_rank()
+        if torch.distributed.is_available() and torch.distributed.is_initialized()
+        else 0
+    )
+
+    # Instantiate datasets
+    train_ds = ImageNet20(root_dir, train=True, validation=False)
+    val_ds = ImageNet20(root_dir, train=False, validation=True)
+
+    # Create samplers (for DDP) or None (for single-GPU)
+    if world_size > 1:
+        train_sampler = DistributedSampler(
+            train_ds, num_replicas=world_size, rank=rank, shuffle=True
+        )
+        val_sampler = DistributedSampler(
+            val_ds, num_replicas=world_size, rank=rank, shuffle=False
+        )
+    else:
+        train_sampler = None
+        val_sampler = None
+
     per_gpu_bs = batch_size // world_size
 
     train_loader = DataLoader(
