@@ -6,8 +6,9 @@ from datasets import load_from_disk, load_dataset
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 import torchvision.transforms as T
 from pathlib import Path
-
-from .dataset_base import DatasetBase
+from tqdm import tqdm
+from dataset_base import DatasetBase
+from classes import mapped_class
 
 
 def get_repo_root():
@@ -250,8 +251,26 @@ def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8, train_cfg
 
     return train_loader, val_loader
 
+def reduce_to_imagenetN(dataset, selected_classes=mapped_class(), num_proc=4):
+    """
+    Reduce the ImageNet100 dataset to samples set to True by filtering
+    on the underlying Hugging Face dataset object
+    """
+    ds = dataset.dataset
+    label_names = ds.features["label"].names
 
-# example use
+    def keep_example(example):
+        class_name = label_names[example["label"]]
+        return selected_classes.get(class_name, False)
+
+    # Filter in parallel (num_proc=4 as an example)
+    filtered_ds = ds.filter(keep_example, num_proc=num_proc)
+
+    # Optionally, assign back to the dataset object
+    dataset.dataset = filtered_ds
+
+    return dataset
+
 if __name__ == "__main__":
     local_dataset_path = load_imagenet100()
     print(f"\nDataset setup process finished. Final dataset location: {local_dataset_path}")
@@ -272,10 +291,19 @@ if __name__ == "__main__":
     for i in range(2):
         sample = train_dataset[i]
         print(
-            f"Sample {i} from train dataset: Image shape: {sample['tensor'].shape}, Label: {sample['label']}"
+            f"Sample {i} from train dataset: Image shape: {sample[0].shape}, Label: {sample[1]}"
         )
     for i in range(2):
         sample = val_dataset[i]
         print(
-            f"Sample {i} from test dataset: Image shape: {sample['tensor'].shape}, Label: {sample['label']}"
+            f"Sample {i} from test dataset: Image shape: {sample[0].shape}, Label: {sample[1]}"
+        )
+    
+    # Test reducing the dataset
+    reduced_train_dataset = reduce_to_imagenetN(train_dataset)
+    print(f"\nReduced training dataset length: {len(reduced_train_dataset)}")
+    for i in range(2):
+        sample = reduced_train_dataset[i]
+        print(
+            f"Sample {i} from train dataset: Image shape: {sample[0].shape}, Label: {sample[1]}"
         )
