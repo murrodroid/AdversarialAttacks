@@ -395,7 +395,7 @@ def get_config(
     if dataset == "imagenet100":
         models = ["mobilenet_imagenet100", "resnet_imagenet100", "swin_imagenet100"]
     elif dataset == "imagenet20":
-        models = ["mobilenet_imagenet20", "resnet_imagenet20", "swin_imagenet20"]
+        models = ["mobilenet_imagenet20", "resnet_imagenet20"]#, "swin_imagenet20"]
     else:  # cifar10
         models = ["cifar10_resnet20"]
 
