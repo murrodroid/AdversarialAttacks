@@ -67,6 +67,7 @@ class GenerationConfig:
     seed: int
     batch_size: int
     pairing_mode: str = "all_targets"  # "all_targets" or "random_target"
+    should_save_images: bool = True
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -385,6 +386,7 @@ def get_config(
     num_images=100,
     pairing_mode="random_target",
     attacks=["fgsm", "pgd", "cw"],
+    should_save_images = True
 ) -> GenerationConfig:
     """Get a default configuration for the generation pipeline."""
     if dataset not in DatasetRegistry.get_available_datasets():
@@ -426,4 +428,5 @@ def get_config(
         seed=42,
         batch_size=batch_size,
         pairing_mode=pairing_mode,
+        should_save_images=should_save_images
     )

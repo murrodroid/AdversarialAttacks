@@ -98,16 +98,16 @@ def run_single_generation(generation_config, attack_config):
         f"{generation_config['image_output_dir']}/adv_{generation_config['attack_name']}_src{source}_tgt{target}_idx{index}.png"
         for source, target, index in generation_config["meta"]
     ]
-
-    with ThreadPoolExecutor() as executor:
-        for i, (_, _, _) in enumerate(generation_config["meta"]):
-            adversarial_image = images_to_save[i]
-            output_path = output_paths[i]
-            executor.submit(
-                lambda img=adversarial_image, path=output_path: tensor_to_pil(
-                    img, generation_config["dataset_name"]
-                ).save(path)
-            )
+    if generation_config['should_save_images']:
+        with ThreadPoolExecutor() as executor:
+            for i, (_, _, _) in enumerate(generation_config["meta"]):
+                adversarial_image = images_to_save[i]
+                output_path = output_paths[i]
+                executor.submit(
+                    lambda img=adversarial_image, path=output_path: tensor_to_pil(
+                        img, generation_config["dataset_name"]
+                    ).save(path)
+                )
 
     generation_results = []
     for i, (source_class, target_class, image_index) in enumerate(generation_config["meta"]):
@@ -260,7 +260,7 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    config = get_config("imagenet20", num_images=100, pairing_mode="random_target")
+    config = get_config("imagenet20", num_images=100, pairing_mode="random_target", should_save_images=False)
 
     validate_configuration(config)
 
