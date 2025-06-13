@@ -1,0 +1,15 @@
+{
+  "timestamp": "20250613-120211",
+  "model_name": "swin",
+  "test_accuracy": 0.9944944944944945,
+  "test_loss": 0.03071426206433379,
+  "training_config": {
+    "epochs": 4,
+    "batch_size": 128,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "finetune_all_layers": false,
+    "output_dim": 20
+  },
+  "wandb_run_name": "swin20_20250613-114509"
+}
