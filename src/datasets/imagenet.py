@@ -19,6 +19,11 @@ def get_repo_root():
 # Downloading imagenet100 dataset from huggingface
 # saving it locally then to a folder in the git repository and deleting the temporary cache folder
 def load_imagenet100():
+    hpc_path = Path("/work3/s234805/data/imagenet100/")
+    if hpc_path.exists():
+        print(f"Using existing HPC dataset at: {hpc_path}")
+        return str(hpc_path)
+
     repo_root = get_repo_root()
     final_dataset_path = os.path.join(repo_root, "data", "imagenet100")
 
@@ -201,10 +206,13 @@ def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8, train_cfg
     Returns (train_loader, val_loader) for ImageNet100.
     Automatically wraps in DistributedSampler if DDP is active.
     """
-    if train_cfg and train_cfg.get('using_hpc',False):
-        root_dir = Path('/work3/s234805/data/imagenet100/')
+    hpc_path = Path("/work3/s234805/data/imagenet100/")
+    if hpc_path.exists():
+        root_dir = hpc_path
+        print(f"Using HPC dataset path: {root_dir}")
     else:
         root_dir = path_to_imagenet100()
+        print(f"Using local dataset path: {root_dir}")
 
     world_size = (
         torch.distributed.get_world_size()
@@ -498,10 +506,13 @@ def create_imagenet20_loaders(
         test_ratio: Proportion of data for testing (default: 0.15)
         random_seed: Random seed for reproducible splits (default: 42)
     """
-    if train_cfg and train_cfg.get("using_hpc", False):
-        root_dir = Path("/work3/s234805/data/imagenet100/")
+    hpc_path = Path("/work3/s234805/data/imagenet100/")
+    if hpc_path.exists():
+        root_dir = hpc_path
+        print(f"Using HPC dataset path: {root_dir}")
     else:
         root_dir = path_to_imagenet100()
+        print(f"Using local dataset path: {root_dir}")
 
     world_size = (
         torch.distributed.get_world_size()
