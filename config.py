@@ -93,16 +93,10 @@ class ModelRegistry:
         "mobilenet": lambda: get_model("mobilenet"),
         "resnet": lambda: get_finetuned_model("resnet"),
         "swin": lambda: get_model("swin"),
-        "cifar10_resnet20": lambda: torch.hub.load(
-            "chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True
-        ),
+        "cifar10_resnet20": lambda: torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True),
         # ImageNet20 specific models
-        "mobilenet_imagenet20": lambda: get_finetuned_model(
-            "mobilenet", cfg={"output_dim": 20}
-        ),
-        "resnet_imagenet20": lambda: get_finetuned_model(
-            "resnet", cfg={"output_dim": 20}
-        ),
+        "mobilenet_imagenet20": lambda: get_finetuned_model("mobilenet", cfg={"output_dim": 20}),
+        "resnet_imagenet20": lambda: get_finetuned_model("resnet", cfg={"output_dim": 20}),
         "swin_imagenet20": lambda: get_finetuned_model("swin", cfg={"output_dim": 20}),
         # ImageNet100 specific models
         "mobilenet_imagenet100": lambda: get_finetuned_model("mobilenet"),
@@ -389,7 +383,7 @@ def get_config(
     dataset,
     GB_vram=getVRAM(),
     num_images=100,
-    pairing_mode="all_targets",
+    pairing_mode="random_target",
     attacks=["fgsm", "pgd", "cw"],
 ) -> GenerationConfig:
     """Get a default configuration for the generation pipeline."""
@@ -412,7 +406,7 @@ def get_config(
     elif 4 < GB_vram <= 8:
         batch_size = 32
     else: 
-        batch_size = 256
+        batch_size = 128
 
     if dataset == "cifar10": 
         batch_size *= 8

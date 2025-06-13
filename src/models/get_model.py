@@ -31,7 +31,7 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 100}):
         swin      = swin_t,
     )
 
-    ckpt = Path("src/models/weights") / f"{name}.pt.xz"
+    ckpt = Path("src/models/weights") / f"{name}{cfg.get('output_dim')}.pt.xz"
     model = _replace_head(builders[name](weights=None), name, cfg)
 
     if ckpt.exists():

@@ -260,7 +260,7 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    config = get_config("cifar10", num_images=100, pairing_mode="random_target")
+    config = get_config("imagenet20", num_images=100, pairing_mode="random_target")
 
     validate_configuration(config)
 
