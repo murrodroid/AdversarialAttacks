@@ -97,9 +97,8 @@ def cw_attack(
     final_pred = probs.argmax(dim=1)
     success = (final_pred == target) & (final_pred != original_pred)
 
-    perturbed = x_adv.detach()
     return (
-        perturbed,
+        x_adv.detach(),
         success.cpu().tolist(),
         [int(n) if n >= 0 else None for n in first_iter.cpu().tolist()],
         first_out,
