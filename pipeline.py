@@ -216,6 +216,7 @@ def run_pipeline(config: GenerationConfig):
                 "image_output_dir": config.image_output_dir,
                 "process_id": 0,
                 "_cached_model": model,
+                "should_save_images": config.should_save_images,
                 **batch,
             }
 
