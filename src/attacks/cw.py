@@ -38,6 +38,11 @@ def cw_attack(
     B = source_image.shape[0]
     target = torch.tensor(target_class, device=source_image.device)
 
+    # Get original predictions to avoid false positives
+    with torch.no_grad():
+        original_output = model(source_image)
+        original_pred = original_output.argmax(dim=1)
+
     success = torch.zeros(B, dtype=torch.bool, device=source_image.device)
     first_iter = torch.full((B,), -1, dtype=torch.int,
                             device=source_image.device)
@@ -58,18 +63,18 @@ def cw_attack(
 
         # Get predicted classes for each sample in batch
         pred = probs.argmax(dim=1)
-        new = ~success & (pred == target)
+        # Track first successful hit for each sample (but don't update final success yet)
+        currently_successful = (pred == target) & (pred != original_pred)
+        new_successes = currently_successful & (first_iter == -1)
 
-        # Check if the predicted class matches the target class for each sample
-        if new.any():
-            idx = new.nonzero(as_tuple=True)[0]
+        # Record first success iteration and probabilities
+        if new_successes.any():
+            idx = new_successes.nonzero(as_tuple=True)[0]
             first_iter[idx] = i
             for j in idx.tolist():
                 first_out[j] = probs[j].detach().cpu().tolist()
-        success |= pred == target
 
-        # Check if we should break early
-        if break_early and success.all():
+        if break_early and currently_successful.all():
             final_out = [probs[j].detach().cpu().tolist() for j in range(B)]
             break
 
@@ -83,12 +88,15 @@ def cw_attack(
         loss2 = (x_adv - source_image).pow(2).view(B, -1).sum(dim=1)  # [B]
         loss = (c * loss1 + loss2).sum()
 
-        
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
     else:
         final_out = [probs[j].detach().cpu().tolist() for j in range(B)]
+
+    final_pred = probs.argmax(dim=1)
+    success = (final_pred == target) & (final_pred != original_pred)
+
     perturbed = x_adv.detach()
     return (
         perturbed,
