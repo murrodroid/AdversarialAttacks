@@ -66,6 +66,7 @@ class GenerationConfig:
     metadata_output_path: str
     seed: int
     batch_size: int
+    pairing_mode: str = "all_targets"  # "all_targets" or "random_target"
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -236,6 +237,13 @@ def create_argument_parser() -> argparse.ArgumentParser:
         default=64,
         help="Number of images to process in each batch.",
     )
+    parser.add_argument(
+        "--pairing_mode",
+        type=str,
+        default="all_targets",
+        choices=["all_targets", "random_target"],
+        help="Pairing mode for adversarial samples: 'all_targets' pairs each image with all possible target classes, 'random_target' assigns each image a single random target class.",
+    )
 
     # Execution parameters
     parser.add_argument(
@@ -286,6 +294,7 @@ def parse_args_to_config(args: argparse.Namespace) -> GenerationConfig:
         metadata_output_path=args.metadata_output,
         seed=args.seed,
         batch_size=args.batch_size,
+        pairing_mode=args.pairing_mode,
     )
 
 
@@ -359,7 +368,14 @@ def create_wandb_config(gen_cfg: GenerationConfig):
 
 default_epsilon = {"imagenet100":4/255, "cifar10": 8/255}
 
-def get_config(dataset, GB_vram = getVRAM()) -> GenerationConfig:
+
+def get_config(
+    dataset,
+    GB_vram=getVRAM(),
+    num_images=100,
+    pairing_mode="all_targets",
+    attacks=["fgsm", "pgd", "cw"],
+) -> GenerationConfig:
     """Get a default configuration for the generation pipeline."""
     if dataset not in DatasetRegistry.get_available_datasets():
         raise ValueError(f"Dataset '{dataset}' not recognized. Available datasets: {DatasetRegistry.get_available_datasets()}")
@@ -368,7 +384,7 @@ def get_config(dataset, GB_vram = getVRAM()) -> GenerationConfig:
     max_iterations = 100
     epsilon = default_epsilon[dataset]
     alpha = epsilon/max_iterations
-    
+
     if GB_vram <= 4: 
         batch_size = 16
     elif 4 < GB_vram <= 8:
@@ -382,15 +398,16 @@ def get_config(dataset, GB_vram = getVRAM()) -> GenerationConfig:
     return GenerationConfig(
         models=models,
         dataset=dataset,
-        attacks=["fgsm", "pgd", "cw"],
-        epsilon = epsilon,
-        alpha = alpha,
+        attacks=attacks,
+        epsilon=epsilon,
+        alpha=alpha,
         iterations=100,
-        num_images_per_class=10,
+        num_images_per_class=num_images,
         parallel_processes=max(1, cpu_count() // 2),
         device=None,  # Will default to cuda if available
         image_output_dir="results/adversarial_images",
         metadata_output_path="results/generation_metadata.csv",
         seed=42,
-        batch_size= batch_size,
+        batch_size=batch_size,
+        pairing_mode=pairing_mode,
     )

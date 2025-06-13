@@ -110,8 +110,12 @@ class DatasetBase(ABC):
 
 
 class AdvDataset:
-    def __init__(self, dataset, num_classes, num_images_per_class):
+
+    def __init__(
+        self, dataset, num_classes, num_images_per_class, pairing_mode="all_targets"
+    ):
         self.dataset = dataset
+        self.pairing_mode = pairing_mode
 
         labels = dataset.get_all_labels(train=False)
         by_class = {c: [] for c in range(num_classes)}
@@ -120,14 +124,27 @@ class AdvDataset:
             if len(by_class[lbl]) < num_images_per_class:
                 by_class[lbl].append(i)
 
-        self.samples = [
-            (src, tgt, idx)
-            for src in range(num_classes)
-            for tgt in range(num_classes)
-            if tgt != src
-            for idx in by_class[src]
-        ]
+        if pairing_mode == "all_targets":
+            self.samples = [
+                (src, tgt, idx)
+                for src in range(num_classes)
+                for tgt in range(num_classes)
+                if tgt != src
+                for idx in by_class[src]
+            ]
+        elif pairing_mode == "random_target":
+            self.samples = []
+            for src in range(num_classes):
+                for idx in by_class[src]:
+                    possible_targets = [tgt for tgt in range(num_classes) if tgt != src]
+                    tgt = random.choice(possible_targets)
+                    self.samples.append((src, tgt, idx))
+        else:
+            raise ValueError(
+                f"Invalid pairing_mode: {pairing_mode}. Must be 'all_targets' or 'random_target'"
+            )
 
+        print(f"Using pairing mode: {pairing_mode}")
         print("Preloading tensors...")
         self.cached_tensors = {}
         unique_indices = {idx for _, _, idx in self.samples}

@@ -132,11 +132,17 @@ def run_single_generation(generation_config, attack_config):
         )
     return generation_results
 
+
 def preprocess_batches(
-    dataset, num_classes, num_images_per_class, batch_size, workers=8
+    dataset,
+    num_classes,
+    num_images_per_class,
+    batch_size,
+    pairing_mode="all_targets",
+    workers=8,
 ):
     """Create batches directly from cached tensors - simplified and fast"""
-    ds = AdvDataset(dataset, num_classes, num_images_per_class)
+    ds = AdvDataset(dataset, num_classes, num_images_per_class, pairing_mode)
 
     print("Creating batches from cached tensors...")
     batches = []
@@ -172,7 +178,13 @@ def run_pipeline(config: GenerationConfig):
     all_results = []
 
     preprocessing_start = time.time()
-    batches = preprocess_batches(dataset, num_classes, config.num_images_per_class, config.batch_size)
+    batches = preprocess_batches(
+        dataset,
+        num_classes,
+        config.num_images_per_class,
+        config.batch_size,
+        config.pairing_mode,
+    )
     preprocessing_time = time.time() - preprocessing_start
     print(f"\nPreprocessing completed in {preprocessing_time:.2f} seconds")
 
@@ -248,7 +260,7 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    config = get_config("cifar10")
+    config = get_config("cifar10", num_images=100, pairing_mode="random_target")
 
     validate_configuration(config)
 
