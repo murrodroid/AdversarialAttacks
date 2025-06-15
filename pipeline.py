@@ -254,6 +254,37 @@ def run_pipeline(config: GenerationConfig):
     else:
         print(results_df.head())
 
+    # Pipeline completion summary
+    print("\n" + "=" * 60)
+    print("🎉 PIPELINE COMPLETED SUCCESSFULLY! 🎉")
+    print("=" * 60)
+    print(f"📊 Generated {len(all_results)} adversarial examples")
+    print(f"🎯 Models tested: {', '.join(config.models)}")
+    print(f"⚔️  Attacks used: {', '.join(config.attacks)}")
+    print(f"📁 Dataset: {config.dataset}")
+    print(
+        f"⏱️  Generation time: {generation_time:.2f} seconds ({generation_time/60:.2f} minutes)"
+    )
+    print(f"🔄 Preprocessing time: {preprocessing_time:.2f} seconds")
+
+    if len(all_results) > 0:
+        success_rate = sum(1 for r in all_results if r["attack_successful"]) / len(
+            all_results
+        )
+        avg_psnr = sum(r["psnr_score"] for r in all_results) / len(all_results)
+        avg_ssim = sum(r["ssim_score"] for r in all_results) / len(all_results)
+        print(f"✅ Overall success rate: {success_rate:.2%}")
+        print(f"📏 Average PSNR: {avg_psnr:.2f}")
+        print(f"🔍 Average SSIM: {avg_ssim:.3f}")
+
+    if config.metadata_output_path:
+        print(f"💾 Results saved to: {config.metadata_output_path}")
+    if config.should_save_images:
+        print(f"🖼️  Images saved to: {config.image_output_dir}")
+    print("=" * 60)
+
+    run.finish()
+
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -270,3 +301,11 @@ if __name__ == "__main__":
     end_time = time.time()
     total_time = end_time - start_time
     print(f"\nTotal execution time: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
+
+    print("\n" + "🎊" * 20)
+    print("🚀 ALL OPERATIONS COMPLETED SUCCESSFULLY! 🚀")
+    print("🎊" * 20)
+    print(f"⏰ Total runtime: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
+    if total_time > 3600:  # More than 1 hour
+        print(f"   That's {total_time/3600:.2f} hours!")
+    print("✨ Thank you for using the Adversarial Attack Pipeline! ✨")
