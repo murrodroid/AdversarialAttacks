@@ -7,7 +7,7 @@ models = ['mobilenet','resnet','swin']
 
 
 # ----- input -----
-model = models[0] 
+model = models[2] 
 output_dim = 20
 # ----- ----- -----
 
@@ -19,7 +19,7 @@ train_cfg = dict(
     finetune_all_layers = False,
 
     epochs            = 8,
-    batch_size        = 256,
+    batch_size        = 32,
     learning_rate     = 0.001,
     weight_decay      = 1e-4,
     lr_scheduler      = "cosine",
