@@ -5,3 +5,4 @@ data
 tests/results
 wandb
 checkpoints
+results
