@@ -4,6 +4,7 @@ import torch
 import torchvision.models as models
 from dataclasses import dataclass
 from typing import Dict, List, Callable, Optional, Any
+import wandb
 from multiprocessing import cpu_count
 
 from src.datasets.cifar10 import Cifar10
