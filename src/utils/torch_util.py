@@ -39,6 +39,8 @@ def tensor_to_pil(tensor, dataset_name):
     try:
         if dataset_name == "cifar10":
             tensor = Cifar10.inverse_transforms(tensor)
+        elif dataset_name == "imagenet20":
+            tensor = ImageNet20.inverse_transforms(tensor)
         elif dataset_name == "imagenet100":
             tensor = ImageNet100.inverse_transforms(tensor)
     except Exception as e:
@@ -107,6 +109,11 @@ def normalize_tensor(tensor, dataset_name):
         if dataset_name == "cifar10":
             transform = TF.normalize(
                 tensor, (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+            )
+            return transform
+        elif dataset_name == "imagenet20":
+            transform = TF.normalize(
+                tensor, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
             )
             return transform
         elif dataset_name == "imagenet100":
