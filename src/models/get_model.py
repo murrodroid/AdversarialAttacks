@@ -75,7 +75,7 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20},width_m
     return model.eval().to(device)
 
 def get_robust_model(name, device=getDevice(), cfg={"output_dim": 20}, width_mult=1.25):
-    finetuned_model = get_finetuned_model(name="mobilenet",width_mult=width_mult)
+    finetuned_model = get_finetuned_model(name=name,width_mult=width_mult)
 
     if name == "swin":
         model = robust_swin(finetuned_model,

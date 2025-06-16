@@ -12,7 +12,7 @@ from src.datasets.imagenet import ImageNet20
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
 from src.attacks.cw import cw_attack
-from src.models.get_model import get_model, get_finetuned_model
+from src.models.get_model import get_model, get_finetuned_model, get_robust_model
 from src.utils.torch_util import getVRAM
 
 
@@ -104,6 +104,7 @@ class ModelRegistry:
         "mobilenet_imagenet100": lambda: get_finetuned_model("mobilenet"),
         "resnet_imagenet100": lambda: get_finetuned_model("resnet"),
         "swin_imagenet100": lambda: get_finetuned_model("swin"),
+        "swin_imagenet20_robust": lambda: get_robust_model("swin")
     }
 
     @classmethod
@@ -395,7 +396,7 @@ def get_config(
     if dataset == "imagenet100":
         models = ["mobilenet_imagenet100", "resnet_imagenet100", "swin_imagenet100"]
     elif dataset == "imagenet20":
-        models = ["mobilenet_imagenet20", "resnet_imagenet20"]#, "swin_imagenet20"]
+        models = ["swin_imagenet20_robust"]#, "swin_imagenet20"]
     else:  # cifar10
         models = ["cifar10_resnet20"]
 
