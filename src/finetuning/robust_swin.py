@@ -1,11 +1,8 @@
 import torch.nn as nn
-from torchvision.models import swin_t, Swin_T_Weights
 from src.finetuning.shifted_window_attention import ShiftedWindowAttention
 
-def build_custom_swin_tiny_with_temp(temperature=1.5, num_classes=100):
-    model = swin_t(weights=Swin_T_Weights.DEFAULT)
-
-    for stage in model.features:
+def robust_swin(finetuned_model,temperature=1.5, num_classes=100):
+    for stage in finetuned_model.features:
         for block in getattr(stage, 'blocks', []):
             block.attn = ShiftedWindowAttention(
                 dim=block.attn.qkv.in_features,
@@ -16,6 +13,5 @@ def build_custom_swin_tiny_with_temp(temperature=1.5, num_classes=100):
                 dropout=block.attn.proj_drop.p,
                 temperature=temperature,
             )
-
-    model.head = nn.Linear(model.head.in_features, num_classes)
-    return model
+    finetuned_model.head = nn.Linear(finetuned_model.head.in_features, num_classes)
+    return finetuned_model
