@@ -7,7 +7,8 @@ import lzma
 
 from src.finetuning.base import _replace_head
 from src.utils.torch_util import getDevice
-
+from src.finetuning.robust_swin import robust_swin
+from src.finetuning.robust_mobilenet import robust_mobilenet
 
 def get_model(name):
     builders = dict(
@@ -18,7 +19,7 @@ def get_model(name):
     f, w = builders[name]
     return f(weights=w).eval().cuda() if torch.cuda.is_available() else f(weights=w).eval().cpu()
 
-def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 100}):
+def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20},width_mult=1.0):
     """Get a finetuned model with the specified number of output classes.
 
     For models that don't have matching checkpoint files (like ImageNet20),
@@ -70,5 +71,24 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 100}):
                 model_state[key] = value
 
         model.load_state_dict(model_state)
+
+    return model.eval().to(device)
+
+def get_robust_model(name, device=getDevice(), cfg={"output_dim": 20}, width_mult=1.25):
+    finetuned_model = get_finetuned_model(name=name,width_mult=width_mult)
+
+    if name == "swin":
+        model = robust_swin(finetuned_model,
+            temperature=1.5,
+            num_classes=cfg["output_dim"]
+        )
+    elif name == "mobilenet":
+        model = robust_mobilenet(
+            width_mult=width_mult,
+            stem_kernel_size=7
+            )
+    elif name == "resnet":
+        # tbd
+        pass
 
     return model.eval().to(device)

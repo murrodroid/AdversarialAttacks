@@ -1,3 +1,4 @@
+from tqdm import tqdm, trange
 import os, torch, wandb
 import torch.distributed as dist
 from torch import nn, optim
@@ -70,15 +71,14 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
     wandb.watch(model,log='all' if rank == 0 else None, log_freq=100)
 
     best = 0.0
-    for epoch in range(train_cfg["epochs"]):
-        print(f'Epoch {epoch} begun.')
+    for epoch in trange(train_cfg["epochs"], desc="Epoch"):
         sampler = getattr(train_loader, "sampler", None)
         if isinstance(sampler, torch.utils.data.distributed.DistributedSampler):
             sampler.set_epoch(epoch)
 
         model.train()
         tr_loss = tr_correct = tr_total = 0
-        for x, y in train_loader:
+        for x, y in tqdm(train_loader, desc="Batch"):
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
             opt.zero_grad(set_to_none=True)
             with autocast(device_type=device.type,enabled=train_cfg.get("amp", True)):
