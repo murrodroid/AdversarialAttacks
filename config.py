@@ -30,7 +30,7 @@ class AttackConfig:
         kwargs = {"epsilon": self.epsilon}
 
         if self.name == "fgsm":
-            kwargs["max_iters"] = self.iterations
+            kwargs["max_iter"] = self.iterations
         elif self.name == "pgd":
             kwargs["alpha"] = self.alpha
             kwargs["max_iter"] = self.iterations

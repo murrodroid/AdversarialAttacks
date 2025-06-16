@@ -225,16 +225,16 @@ def run_pipeline(config: GenerationConfig):
 
             wandb_df = pd.DataFrame(batch_results)
             run.log(
-            {
-            "model": model,
-            "attack": attack_name,
-            "success_rate": wandb_df.attack_successful.mean(),
-            "mean_psnr": wandb_df.psnr_score.mean(),
-            "mean_ssim": wandb_df.ssim_score.mean(),
-            "mean_ergas": wandb_df.ergas_score.mean(),
-            "mean_first_iter": wandb_df.first_success_iter.dropna().mean(),
-            },
-            step=step,
+                {
+                    "model": model,
+                    "attack": attack_name,
+                    "success_rate": wandb_df.attack_successful.mean(),
+                    "mean_psnr": wandb_df.psnr_score.mean(),
+                    "mean_ssim": wandb_df.ssim_score.mean(),
+                    "mean_ergas": wandb_df.ergas_score.mean(),
+                    "mean_first_iter": wandb_df.first_success_iter.dropna().mean(),
+                },
+                step=step,
             )
 
             if config.device == "cuda":
