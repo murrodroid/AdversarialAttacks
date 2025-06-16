@@ -8,7 +8,7 @@ from torch.amp import autocast
 from src.finetuning.base import finetune
 from src.finetuning.configs.base_finetune import train_cfg, wandb_cfg
 from src.datasets.imagenet import create_imagenet20_loaders
-from src.models.get_model import get_robust_model
+from src.models.get_model import get_robust_model, get_finetuned_model
 from src.utils.torch_util import getDevice
 
 
@@ -84,7 +84,10 @@ def save_test_results(test_accuracy, test_loss, train_cfg, wandb_cfg):
 
 def main() -> None:
     """Run finetuning for the configured model and evaluate on test set."""
-    model = get_robust_model(model_name, cfg={"output_dim": 20})
+    if train_cfg["adversarial_training"]:
+        model = get_finetuned_model(model_name, train_cfg)
+    else:
+        model = get_robust_model(model_name, train_cfg)
 
     # Create train, validation, and test loaders
     train_loader, val_loader, test_loader = create_imagenet20_loaders(
