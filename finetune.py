@@ -85,9 +85,9 @@ def save_test_results(test_accuracy, test_loss, train_cfg, wandb_cfg):
 def main() -> None:
     """Run finetuning for the configured model and evaluate on test set."""
     if train_cfg["adversarial_training"]:
-        model = get_finetuned_model(model_name, train_cfg)
+        model = get_finetuned_model(model_name, cfg=train_cfg)
     else:
-        model = get_robust_model(model_name, train_cfg)
+        model = get_robust_model(model_name, cfg=train_cfg)
 
     # Create train, validation, and test loaders
     train_loader, val_loader, test_loader = create_imagenet20_loaders(

@@ -94,7 +94,7 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
         tr_loss = tr_correct = tr_total = 0
         for x, y in tqdm(train_loader, desc="Batch"):
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
-            if train_cfg["adversarial_training"]:
+            if train_cfg["adversarial_training"] and np.random.random()>0.2:
                 eps = default_epsilon[train_cfg["dataset_name"]] #torch.normal(default_epsilon[train_cfg["dataset_name"]]).item()
                 attack_function = np.random.choice(attacks)
                 y_prime = sample_target(y, train_cfg["output_dim"])
