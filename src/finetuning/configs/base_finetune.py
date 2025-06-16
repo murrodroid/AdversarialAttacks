@@ -16,19 +16,19 @@ train_cfg = dict(
 
     model_name        = model,
     output_dim        = output_dim,
-    finetune_all_layers = False,
+    finetune_all_layers = True,
 
-    epochs            = 8,
-    batch_size        = 32,
+    epochs            = 5,
+    batch_size        = 256,
     learning_rate     = 0.001,
     weight_decay      = 1e-4,
     lr_scheduler      = "cosine",
 
     workers           = 8,
     amp               = True,
-    save_dir          = Path("checkpoints") / f"{model}{output_dim}-{run_id}",
+    save_dir          = Path("/zhome/0e/9/205681/AdversarialAttacks/") / f"{model}{output_dim}-{run_id}",
 
-    dataset_root        = Path(f"/data/{model}{output_dim}"),
+    dataset_root        = Path(f"/zhome/0e/9/205681/AdversarialAttacks/data/{model}{output_dim}"),
 )
 wandb_cfg = dict(
     project="adversarialAttacks",
@@ -37,7 +37,7 @@ wandb_cfg = dict(
     run_name=f"{model}20_{run_id}",
 )
 
-runs_root   = Path("finetune_results/base_finetune")     # top-level folder
+runs_root   = Path("/zhome/0e/9/205681/AdversarialAttacks/finetune_results/base_finetune")     # top-level folder
 # run_dir     = runs_root / run_name
 # ckpt_dir    = run_dir / "checkpoints"
 # reports_dir = run_dir / "reports"
