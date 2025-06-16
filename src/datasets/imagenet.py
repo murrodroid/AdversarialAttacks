@@ -3,6 +3,7 @@ import os
 import shutil
 import tempfile
 import numpy as np
+import pickle
 from datasets import load_from_disk, load_dataset
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 import torchvision.transforms as T
@@ -38,17 +39,14 @@ def load_imagenet100():
     os.makedirs(temp_cache_dir, exist_ok=True)
     print(f"Ensured cache directory exists at: {temp_cache_dir}")
 
-    # loading the dataset into a temporary cache directory to avoid issues
     print(f"Attempting to load ImageNet100 using temporary cache: {temp_cache_dir}")
     ds_dict = load_dataset("clane9/imagenet-100", cache_dir=temp_cache_dir)
     print("Dataset loaded into temporary cache successfully.")
 
-    # Copying the dataset to the final location
     print(f"Saving the dataset to its final location: {final_dataset_path}")
     ds_dict.save_to_disk(final_dataset_path)
     print(f"ImageNet100 dataset successfully saved to {final_dataset_path}")
 
-    # Remove the temporary cache directory to avoid storing unnecessary data
     if os.path.exists(temp_cache_dir):
         print(f"Removing temporary cache directory: {temp_cache_dir}")
         try:
@@ -57,135 +55,6 @@ def load_imagenet100():
         except Exception as e:
             print(f"Error removing temporary cache directory {temp_cache_dir}: {e}")
     return final_dataset_path
-
-
-class ImageNet100(DatasetBase):
-    def __init__(self, root_dir=None, train=False, validation=False):
-        super().__init__()
-
-        if root_dir is None:
-            root_dir = load_imagenet100()
-
-        self.root_dir = root_dir
-        split_name = "train" if train else "validation"
-        self.dire = os.path.join(self.root_dir, split_name)
-        self.dataset = load_from_disk(self.dire)
-
-        # Store train/validation state
-        self.is_train = train
-        self.is_validation = validation
-
-        self.train_transforms = T.Compose(
-            [
-                T.RandomResizedCrop(224),
-                T.RandomHorizontalFlip(),
-                T.ToTensor(),
-                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
-        )
-
-        self.val_transforms = T.Compose(
-            [
-                T.Resize(256),
-                T.CenterCrop(224),
-                T.ToTensor(),
-                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
-        )
-
-        self.num_classes = self.dataset.features["label"].num_classes
-        self.labels = list(range(self.num_classes))
-
-    @staticmethod
-    def transforms(image):
-        """Apply dataset-specific transforms to an image (validation transforms by default)."""
-        transform = T.Compose(
-            [
-                T.Resize(256),
-                T.CenterCrop(224),
-                T.ToTensor(),
-                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
-        )
-
-        # Ensure image is RGB, as required by standard models
-        return transform(image.convert("RGB"))
-
-    @staticmethod
-    def transforms_train(image):
-        """Apply training-specific transforms to an image."""
-        transform = T.Compose(
-            [
-                T.RandomResizedCrop(224),
-                T.RandomHorizontalFlip(),
-                T.ToTensor(),
-                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ]
-        )
-
-        # Ensure image is RGB, as required by standard models
-        return transform(image.convert("RGB"))
-
-    @staticmethod
-    def inverse_transforms(tensor):
-        """Convert normalized ImageNet tensor back to [0,1] range."""
-        inv_mean = [
-            -m / s for m, s in zip([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ]
-        inv_std = [1 / s for s in [0.229, 0.224, 0.225]]
-
-        transform = T.Compose([T.Normalize(tuple(inv_mean), tuple(inv_std))])
-        return transform(tensor)
-
-    def __len__(self):
-        """
-        Returns the total number of samples in the dataset.
-        """
-        return len(self.dataset)
-
-    def __getitem__(self, idx):
-        """
-        Fetches the sample at the given index and applies transforms.
-        """
-        # 5. Get a single item from the dataset. It's a dictionary.
-        # The default keys are 'image' and 'label'.
-        item = self.dataset[idx]
-        image = item["image"]
-        label = item["label"]
-
-        # 6. Apply transforms to the PIL image.
-        transforms_to_use = (
-            self.train_transforms if self.is_train else self.val_transforms
-        )
-        if transforms_to_use:
-            # Ensure image is RGB, as required by standard models
-            image = transforms_to_use(image.convert("RGB"))
-
-        return image, label
-
-    def get_by_index(self, idx, train=False):
-        """Returns a sample dict given its index."""
-        item = self.dataset[idx]
-        image = item["image"]
-        label = item["label"]
-
-        # Apply transforms
-        if train:
-            tensor = self.__class__.transforms_train(image).unsqueeze(0)  # [1, C, H, W]
-        else:
-            tensor = self.__class__.transforms(image).unsqueeze(0)  # [1, C, H, W]
-        return {"tensor": tensor, "label": label, "index": idx}
-
-    def get_indices_from_class(self, class_idx, train=False, num_images=None):
-        """Get indices of samples belonging to a specific class."""
-        indices = [i for i, item in enumerate(self.dataset) if item["label"] == class_idx]
-        if num_images is not None:
-            indices = indices[:num_images]
-        return indices
-
-    def get_all_labels(self, train=False):
-        """Returns a list of all labels for a given split."""
-        return self.dataset["label"]
 
 
 def path_to_imagenet100():
@@ -201,66 +70,8 @@ def path_to_imagenet100():
 
     return data_directory
 
-def create_imagenet100_loaders(batch_size: int = 32, workers: int = 8, train_cfg = {}):
-    """
-    Returns (train_loader, val_loader) for ImageNet100.
-    Automatically wraps in DistributedSampler if DDP is active.
-    """
-    hpc_path = Path("/work3/s234805/data/imagenet100/")
-    if hpc_path.exists():
-        root_dir = hpc_path
-        print(f"Using HPC dataset path: {root_dir}")
-    else:
-        root_dir = path_to_imagenet100()
-        print(f"Using local dataset path: {root_dir}")
 
-    world_size = (
-        torch.distributed.get_world_size()
-        if torch.distributed.is_available() and torch.distributed.is_initialized()
-        else 1
-    )
-    rank = (
-        torch.distributed.get_rank() if torch.distributed.is_available() and torch.distributed.is_initialized() else 0
-    )
-
-    # Instantiate datasets
-    train_ds = ImageNet100(root_dir, train=True, validation=False)
-    val_ds = ImageNet100(root_dir, train=False, validation=True)
-
-    # Create samplers (for DDP) or None (for single-GPU)
-    if world_size > 1:
-        train_sampler = DistributedSampler(train_ds, num_replicas=world_size, rank=rank, shuffle=True)
-        val_sampler = DistributedSampler(val_ds, num_replicas=world_size, rank=rank, shuffle=False)
-    else:
-        train_sampler = None
-        val_sampler = None
-
-    per_gpu_bs = batch_size // world_size
-
-    train_loader = DataLoader(
-        train_ds,
-        batch_size=per_gpu_bs,
-        sampler=train_sampler,
-        shuffle=(train_sampler is None),
-        num_workers=workers,
-        pin_memory=True,
-        drop_last=True,
-    )
-
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=per_gpu_bs,
-        sampler=val_sampler,
-        shuffle=False,
-        num_workers=workers,
-        pin_memory=True,
-        drop_last=False,
-    )
-
-    return train_loader, val_loader
-
-
-class ImageNet20(ImageNet100):
+class ImageNet20(DatasetBase):
     """A subset of ImageNet100 containing only 20 selected classes with reproducible train/val/test splits."""
 
     SELECTED_CLASSES = {
@@ -313,8 +124,6 @@ class ImageNet20(ImageNet100):
         if split not in ["train", "val", "test"]:
             raise ValueError("split must be one of 'train', 'val', 'test'")
 
-        # Initialize parent class with both train and validation data to get all data
-        # We'll load from both original splits and then create our own splits
         self.split = split
         self.random_seed = random_seed
         self.train_ratio = train_ratio
@@ -326,53 +135,18 @@ class ImageNet20(ImageNet100):
 
         self.root_dir = root_dir
 
-        # Load both train and validation data from ImageNet100
-        train_dir = os.path.join(self.root_dir, "train")
-        val_dir = os.path.join(self.root_dir, "validation")
+        cache_path = self._get_cache_path()
+        if os.path.exists(cache_path):
+            print(f"Loading cached ImageNet20 splits from {cache_path}")
+            self._load_from_cache(cache_path, split)
+        else:
+            print("Creating ImageNet20 splits (this may take a moment on first run)...")
+            self._create_and_cache_splits(cache_path)
+            self._load_from_cache(cache_path, split)
 
-        train_dataset = load_from_disk(train_dir)
-        val_dataset = load_from_disk(val_dir)
-
-        # Combine both datasets
-        from datasets import concatenate_datasets
-
-        combined_dataset = concatenate_datasets([train_dataset, val_dataset])
-
-        # Get the original label names
-        original_label_names = combined_dataset.features["label"].names
-
-        # Filter dataset to only include selected classes
-        selected_indices = []
-        original_labels_in_filtered = []
-
-        for idx, item in enumerate(combined_dataset):
-            class_name = original_label_names[item["label"]]
-            if class_name in self.SELECTED_CLASSES:
-                selected_indices.append(idx)
-                if item["label"] not in original_labels_in_filtered:
-                    original_labels_in_filtered.append(item["label"])
-
-        # Create a new dataset with only selected classes
-        filtered_dataset = combined_dataset.select(selected_indices)
-
-        # Update number of classes and labels
-        self.num_classes = len(self.SELECTED_CLASSES)
-        self.labels = list(self.SELECTED_CLASSES.keys())
-
-        # Create a mapping from original labels to new labels (0-19)
-        self.label_mapping = {}
-        for new_idx, class_name in enumerate(self.labels):
-            original_idx = original_label_names.index(class_name)
-            self.label_mapping[original_idx] = new_idx
-
-        # Create reproducible train/val/test splits
-        self.dataset = self._create_split(filtered_dataset, split)
-
-        # Set transform states based on split
         self.is_train = split == "train"
         self.is_validation = split == "val"
 
-        # Initialize transforms
         self.train_transforms = T.Compose(
             [
                 T.RandomResizedCrop(224),
@@ -391,54 +165,189 @@ class ImageNet20(ImageNet100):
             ]
         )
 
-    def _create_split(self, dataset, split):
-        """Create reproducible train/val/test splits."""
-        # Set random seed for reproducibility
+    def _get_cache_path(self):
+        """Get path for cached split data."""
+        cache_dir = os.path.join(self.root_dir, "imagenet20_cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_filename = f"splits_seed{self.random_seed}_train{self.train_ratio}_val{self.val_ratio}_test{self.test_ratio}.pkl"
+        return os.path.join(cache_dir, cache_filename)
+
+    def _create_and_cache_splits(self, cache_path):
+        """Create and cache the filtered and split datasets for faster subsequent loading."""
+        print("Processing ImageNet100 data and creating splits...")
+
+        train_dir = os.path.join(self.root_dir, "train")
+        val_dir = os.path.join(self.root_dir, "validation")
+
+        train_dataset = load_from_disk(train_dir)
+        val_dataset = load_from_disk(val_dir)
+
+        label_names = train_dataset.features["label"].names
+
+        selected_original_indices = {}
+        for class_name in self.SELECTED_CLASSES:
+            if class_name in label_names:
+                selected_original_indices[label_names.index(class_name)] = class_name
+
+        print(
+            f"Selected {len(selected_original_indices)} classes from {len(label_names)} total classes"
+        )
+
+        train_labels = np.array(train_dataset["label"])
+        val_labels = np.array(val_dataset["label"])
+
+        train_mask = np.isin(train_labels, list(selected_original_indices.keys()))
+        val_mask = np.isin(val_labels, list(selected_original_indices.keys()))
+
+        train_filtered_indices = np.where(train_mask)[0].tolist()
+        val_filtered_indices = np.where(val_mask)[0].tolist()
+
+        print(
+            f"Filtered to {len(train_filtered_indices)} train and {len(val_filtered_indices)} val samples"
+        )
+
+        self.labels = list(self.SELECTED_CLASSES.keys())
+        label_mapping = {}
+        for new_idx, class_name in enumerate(self.labels):
+            if class_name in label_names:
+                original_idx = label_names.index(class_name)
+                label_mapping[original_idx] = new_idx
+
+        all_indices = []
+        all_labels = []
+
+        for idx in train_filtered_indices:
+            all_indices.append(("train", idx))
+            all_labels.append(train_labels[idx])
+
+        for idx in val_filtered_indices:
+            all_indices.append(("val", idx))
+            all_labels.append(val_labels[idx])
+
+        class_data = {}
+        for i, (split_source, idx) in enumerate(all_indices):
+            original_label = all_labels[i]
+            if original_label not in class_data:
+                class_data[original_label] = []
+            class_data[original_label].append((split_source, idx))
+
         np.random.seed(self.random_seed)
 
-        # Group indices by class to ensure balanced splits
-        class_indices = {}
-        for idx, item in enumerate(dataset):
-            original_label = item["label"]
-            if original_label not in class_indices:
-                class_indices[original_label] = []
-            class_indices[original_label].append(idx)
+        train_split_data = []
+        val_split_data = []
+        test_split_data = []
 
-        # Create splits for each class separately
-        split_indices = []
+        for original_label, samples in class_data.items():
+            samples = np.array(samples, dtype=object)
+            shuffle_indices = np.random.permutation(len(samples))
+            samples = samples[shuffle_indices]
 
-        for original_label, indices in class_indices.items():
-            # Shuffle indices for this class
-            indices = np.array(indices)
-            np.random.shuffle(indices)
-
-            n_samples = len(indices)
+            n_samples = len(samples)
             n_train = int(n_samples * self.train_ratio)
             n_val = int(n_samples * self.val_ratio)
-            n_test = n_samples - n_train - n_val  # Ensure all samples are used
 
-            if split == "train":
-                split_indices.extend(indices[:n_train])
-            elif split == "val":
-                split_indices.extend(indices[n_train : n_train + n_val])
-            else:  # test
-                split_indices.extend(indices[n_train + n_val :])
+            train_split_data.extend(samples[:n_train])
+            val_split_data.extend(samples[n_train : n_train + n_val])
+            test_split_data.extend(samples[n_train + n_val :])
 
-        # Sort indices to ensure consistent ordering
-        split_indices.sort()
+        cache_data = {
+            "train_split_data": train_split_data,
+            "val_split_data": val_split_data,
+            "test_split_data": test_split_data,
+            "label_mapping": label_mapping,
+            "labels": self.labels,
+            "num_classes": len(self.SELECTED_CLASSES),
+        }
 
-        return dataset.select(split_indices)
+        print(f"Caching splits to {cache_path}")
+        with open(cache_path, "wb") as f:
+            pickle.dump(cache_data, f)
+
+        print(
+            f"Split sizes - Train: {len(train_split_data)}, Val: {len(val_split_data)}, Test: {len(test_split_data)}"
+        )
+
+    def _load_from_cache(self, cache_path, split):
+        """Load the dataset for the specified split from cache."""
+        with open(cache_path, "rb") as f:
+            cache_data = pickle.load(f)
+
+        self.label_mapping = cache_data["label_mapping"]
+        self.labels = cache_data["labels"]
+        self.num_classes = cache_data["num_classes"]
+
+        split_key = f"{split}_split_data"
+        split_data = cache_data[split_key]
+
+        if not hasattr(self, "_loaded_datasets"):
+            self._train_dataset = load_from_disk(os.path.join(self.root_dir, "train"))
+            self._val_dataset = load_from_disk(
+                os.path.join(self.root_dir, "validation")
+            )
+            self._loaded_datasets = True
+
+        self._split_data = split_data
+        print(f"Loaded {len(split_data)} samples for {split} split")
+
+    @staticmethod
+    def transforms(image):
+        """Apply dataset-specific transforms to an image (validation transforms by default)."""
+        transform = T.Compose(
+            [
+                T.Resize(256),
+                T.CenterCrop(224),
+                T.ToTensor(),
+                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
+        return transform(image.convert("RGB"))
+
+    @staticmethod
+    def transforms_train(image):
+        """Apply training-specific transforms to an image."""
+        transform = T.Compose(
+            [
+                T.RandomResizedCrop(224),
+                T.RandomHorizontalFlip(),
+                T.ToTensor(),
+                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
+        return transform(image.convert("RGB"))
+
+    @staticmethod
+    def inverse_transforms(tensor):
+        """Convert normalized ImageNet tensor back to [0,1] range."""
+        inv_mean = [
+            -m / s for m, s in zip([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]
+        inv_std = [1 / s for s in [0.229, 0.224, 0.225]]
+
+        transform = T.Compose([T.Normalize(tuple(inv_mean), tuple(inv_std))])
+        return transform(tensor)
+
+    def __len__(self):
+        """
+        Returns the total number of samples in the dataset.
+        """
+        return len(self._split_data)
 
     def __getitem__(self, idx):
         """Fetches the sample at the given index and applies transforms."""
-        item = self.dataset[idx]
+        split_source, original_idx = self._split_data[idx]
+
+        if split_source == "train":
+            item = self._train_dataset[original_idx]
+        else:  # "val"
+            item = self._val_dataset[original_idx]
+
         image = item["image"]
         original_label = item["label"]
 
-        # Map the original label to the new label space
         label = self.label_mapping[original_label]
 
-        # Apply transforms to the PIL image
         transforms_to_use = (
             self.train_transforms if self.is_train else self.val_transforms
         )
@@ -449,12 +358,17 @@ class ImageNet20(ImageNet100):
 
     def get_by_index(self, idx, train=False):
         """Returns a sample dict given its index."""
-        item = self.dataset[idx]
+        split_source, original_idx = self._split_data[idx]
+
+        if split_source == "train":
+            item = self._train_dataset[original_idx]
+        else:
+            item = self._val_dataset[original_idx]
+
         image = item["image"]
         original_label = item["label"]
         label = self.label_mapping[original_label]
 
-        # Apply transforms
         if train:
             tensor = self.__class__.transforms_train(image).unsqueeze(0)  # [1, C, H, W]
         else:
@@ -463,22 +377,41 @@ class ImageNet20(ImageNet100):
 
     def get_indices_from_class(self, class_idx, train=False, num_images=None):
         """Get indices of samples belonging to a specific class."""
-        # Map the new class index back to the original class name
         class_name = self.labels[class_idx]
-        original_class_idx = self.dataset.features["label"].names.index(class_name)
+        original_class_idx = None
 
-        indices = [
-            i
-            for i, item in enumerate(self.dataset)
-            if item["label"] == original_class_idx
-        ]
+        for orig_idx, mapped_idx in self.label_mapping.items():
+            if mapped_idx == class_idx:
+                original_class_idx = orig_idx
+                break
+
+        if original_class_idx is None:
+            return []
+
+        indices = []
+        for i, (split_source, original_idx) in enumerate(self._split_data):
+            if split_source == "train":
+                item_label = self._train_dataset[original_idx]["label"]
+            else:
+                item_label = self._val_dataset[original_idx]["label"]
+
+            if item_label == original_class_idx:
+                indices.append(i)
+
         if num_images is not None:
             indices = indices[:num_images]
         return indices
 
     def get_all_labels(self, train=False):
         """Returns a list of all labels for a given split."""
-        return [self.label_mapping[label] for label in self.dataset["label"]]
+        labels = []
+        for split_source, original_idx in self._split_data:
+            if split_source == "train":
+                original_label = self._train_dataset[original_idx]["label"]
+            else:
+                original_label = self._val_dataset[original_idx]["label"]
+            labels.append(self.label_mapping[original_label])
+        return labels
 
 
 def create_imagenet20_loaders(
@@ -525,7 +458,6 @@ def create_imagenet20_loaders(
         else 0
     )
 
-    # Instantiate datasets with the same split configuration
     train_ds = ImageNet20(
         root_dir,
         split="train",
@@ -545,7 +477,6 @@ def create_imagenet20_loaders(
 
     per_gpu_bs = batch_size // world_size
 
-    # Create samplers (for DDP) or None (for single-GPU)
     if world_size > 1:
         train_sampler = DistributedSampler(
             train_ds, num_replicas=world_size, rank=rank, shuffle=True
@@ -565,6 +496,8 @@ def create_imagenet20_loaders(
         num_workers=workers,
         pin_memory=True,
         drop_last=True,
+        persistent_workers=True if workers > 0 else False,
+        prefetch_factor=2 if workers > 0 else 2,
     )
 
     val_loader = DataLoader(
@@ -575,6 +508,8 @@ def create_imagenet20_loaders(
         num_workers=workers,
         pin_memory=True,
         drop_last=False,
+        persistent_workers=True if workers > 0 else False,
+        prefetch_factor=2 if workers > 0 else 2,
     )
 
     if include_test:
@@ -602,6 +537,8 @@ def create_imagenet20_loaders(
             num_workers=workers,
             pin_memory=True,
             drop_last=False,
+            persistent_workers=True if workers > 0 else False,
+            prefetch_factor=2 if workers > 0 else 2,
         )
 
         return train_loader, val_loader, test_loader
@@ -621,7 +558,6 @@ def get_imagenet20_split_info(
     if root_dir is None:
         root_dir = path_to_imagenet100()
 
-    # Create datasets for each split
     train_ds = ImageNet20(
         root_dir,
         split="train",
@@ -650,10 +586,9 @@ def get_imagenet20_split_info(
     def get_class_distribution(dataset):
         """Get the distribution of classes in a dataset."""
         class_counts = {}
-        for item in dataset.dataset:
-            original_label = item["label"]
-            mapped_label = dataset.label_mapping[original_label]
-            class_name = dataset.labels[mapped_label]
+        labels = dataset.get_all_labels()
+        for label in labels:
+            class_name = dataset.labels[label]
             class_counts[class_name] = class_counts.get(class_name, 0) + 1
         return class_counts
 
@@ -688,15 +623,6 @@ if __name__ == "__main__":
     data_directory = path_to_imagenet100()
     print(f"\nData directory for ImageNet100: {data_directory}")
 
-    # Test the original ImageNet100
-    train_dataset = ImageNet100(root_dir=data_directory, train=True)
-    val_dataset = ImageNet100(root_dir=data_directory, validation=True)
-    print(f"\nLength of training dataset object: {len(train_dataset)}")
-    print(f"\nLength of validation dataset object: {len(val_dataset)}")
-
-    train_loader, val_loader = create_imagenet100_loaders(batch_size=16, workers=4)
-    print("\nImageNet100 DataLoaders work")
-
     # Test the new ImageNet20 with reproducible splits
     print("\n" + "=" * 60)
     print("Testing ImageNet20 with reproducible train/val/test splits")
@@ -725,9 +651,9 @@ if __name__ == "__main__":
     )
 
     print(f"\nReproducibility test (same seed=42):")
-    print(f"Train sizes match: {len(train_ds_20) == len(train_ds_20_repeat)}")
-    print(f"Val sizes match: {len(val_ds_20) == len(val_ds_20_repeat)}")
-    print(f"Test sizes match: {len(test_ds_20) == len(test_ds_20_repeat)}")
+    print(f"Train sizes match: {len(train_ds) == len(train_ds_20_repeat)}")
+    print(f"Val sizes match: {len(val_ds) == len(val_ds_20_repeat)}")
+    print(f"Test sizes match: {len(test_ds) == len(test_ds_20_repeat)}")
 
     # Test different seed gives different splits
     train_ds_20_diff = ImageNet20(
@@ -735,7 +661,7 @@ if __name__ == "__main__":
     )
     print(f"\nDifferent seed test (seed=123):")
     print(f"Train size with different seed: {len(train_ds_20_diff)}")
-    print(f"Same size with different seed: {len(train_ds_20) == len(train_ds_20_diff)}")
+    print(f"Same size with different seed: {len(train_ds) == len(train_ds_20_diff)}")
 
     # Get detailed split information
     split_info = get_imagenet20_split_info(data_directory)
@@ -749,13 +675,13 @@ if __name__ == "__main__":
     # Test some samples
     print(f"\nTesting sample access:")
     for i in range(2):
-        sample = train_ds_20[i]
+        sample = train_ds[i]
         print(f"Train sample {i}: Image shape: {sample[0].shape}, Label: {sample[1]}")
 
     for i in range(2):
-        sample = val_ds_20[i]
+        sample = val_ds[i]
         print(f"Val sample {i}: Image shape: {sample[0].shape}, Label: {sample[1]}")
 
     for i in range(2):
-        sample = test_ds_20[i]
+        sample = test_ds[i]
         print(f"Test sample {i}: Image shape: {sample[0].shape}, Label: {sample[1]}")

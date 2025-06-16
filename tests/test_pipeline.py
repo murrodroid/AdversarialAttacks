@@ -44,6 +44,7 @@ class TestPipeline(unittest.TestCase):
             "batch_cpu": self.test_batch,
             "meta": self.test_meta,
             "_cached_model": self.model,
+            "should_save_images": True,
         }
 
         attack_config = AttackConfig(

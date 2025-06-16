@@ -7,7 +7,7 @@ import pathlib
 import shutil
 
 from src.finetuning.configs.base_finetune import train_cfg
-from src.datasets.imagenet import ImageNet100, ImageNet20
+from src.datasets.imagenet import ImageNet20
 from src.datasets.cifar10 import Cifar10
 
 
@@ -41,8 +41,6 @@ def tensor_to_pil(tensor, dataset_name):
             tensor = Cifar10.inverse_transforms(tensor)
         elif dataset_name == "imagenet20":
             tensor = ImageNet20.inverse_transforms(tensor)
-        elif dataset_name == "imagenet100":
-            tensor = ImageNet100.inverse_transforms(tensor)
     except Exception as e:
         print(
             f"Warning: Error during inverse_transform: {e}. Clamping tensor.")
@@ -75,8 +73,6 @@ def unnormalize_tensor(tensor, dataset_name):
     try:
         if dataset_name == "cifar10":
             tensor = Cifar10.inverse_transforms(tensor)
-        elif dataset_name == "imagenet100":
-            tensor = ImageNet100.inverse_transforms(tensor)
         elif dataset_name == "imagenet20":
             tensor = ImageNet20.inverse_transforms(tensor)
         else:
@@ -112,11 +108,6 @@ def normalize_tensor(tensor, dataset_name):
             )
             return transform
         elif dataset_name == "imagenet20":
-            transform = TF.normalize(
-                tensor, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-            )
-            return transform
-        elif dataset_name == "imagenet100":
             transform = TF.normalize(
                 tensor, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
             )

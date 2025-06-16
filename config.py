@@ -8,7 +8,7 @@ import wandb
 from multiprocessing import cpu_count
 
 from src.datasets.cifar10 import Cifar10
-from src.datasets.imagenet import ImageNet100, ImageNet20
+from src.datasets.imagenet import ImageNet20
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.pgd import pgd_attack
 from src.attacks.cw import cw_attack
@@ -134,7 +134,6 @@ class DatasetRegistry:
 
     _DATASETS: Dict[str, Callable] = {
         "cifar10": Cifar10,
-        "imagenet100": ImageNet100,
         "imagenet20": ImageNet20,
     }
 
