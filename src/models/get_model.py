@@ -74,21 +74,20 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20},width_m
 
     return model.eval().to(device)
 
-def get_robust_model(name, device=getDevice(), cfg={"output_dim": 20}, width_mult=1.25):
-    finetuned_model = get_finetuned_model(name=name,width_mult=width_mult)
-
+def get_robust_model(name, device=getDevice(), cfg={"output_dim": 20, "width_mult": 1.5}):
     if name == "swin":
-        model = robust_swin(finetuned_model,
+        model = robust_swin(
             temperature=1.5,
             num_classes=cfg["output_dim"]
         )
     elif name == "mobilenet":
         model = robust_mobilenet(
-            width_mult=width_mult,
+            width_mult=cfg["width_mult"],
             stem_kernel_size=7
             )
     elif name == "resnet":
         # tbd
         pass
+    
 
     return model.eval().to(device)
