@@ -1,8 +1,11 @@
 import torch.nn as nn
 from src.finetuning.shifted_window_attention import ShiftedWindowAttention
+from torchvision.models import swin_t
 
-def robust_swin(finetuned_model,temperature=1.5, num_classes=100):
-    for stage in finetuned_model.features:
+def robust_swin(temperature=1.5, num_classes=20):
+    model = swin_t(weights=None)
+    
+    for stage in model.features:
         for block in getattr(stage, 'blocks', []):
             block.attn = ShiftedWindowAttention(
                 dim=block.attn.qkv.in_features,
@@ -13,5 +16,5 @@ def robust_swin(finetuned_model,temperature=1.5, num_classes=100):
                 dropout=block.attn.proj_drop.p,
                 temperature=temperature,
             )
-    finetuned_model.head = nn.Linear(finetuned_model.head.in_features, num_classes)
-    return finetuned_model
+    model.head = nn.Linear(model.head.in_features, num_classes)
+    return model
