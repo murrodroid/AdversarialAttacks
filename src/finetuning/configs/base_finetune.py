@@ -23,6 +23,7 @@ train_cfg = dict(
     learning_rate     = 0.001,
     weight_decay      = 1e-4,
     lr_scheduler      = "cosine",
+    width_mult        = 1.5,  
 
     workers           = 8,
     amp               = True,
