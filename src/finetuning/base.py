@@ -4,9 +4,22 @@ import torch.distributed as dist
 from torch import nn, optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.amp import autocast
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
+import numpy as np
 from src.utils.torch_util import getDevice
 from src.finetuning.configs.base_finetune import train_cfg, wandb_cfg
+from src.attacks.fgsm import fgsm_attack
+from src.attacks.cw import cw_attack
+from src.attacks.pgd import pgd_attack
+
+default_epsilon = {"imagenet100": 4 / 255, "cifar10": 8 / 255, "imagenet20": 4 / 255}
+
+attacks = [fgsm_attack, pgd_attack, cw_attack]
+
+def sample_target(y,num_classes):
+    r = torch.randint(0, num_classes-1, size = y.shape,device=y.device)
+    return torch.where(r >= y, r + 1, r)
+
 
 def _replace_head(model, name: str, cfg: dict):
     if name == "resnet":
@@ -80,6 +93,12 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
         tr_loss = tr_correct = tr_total = 0
         for x, y in tqdm(train_loader, desc="Batch"):
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+            if train_cfg["adversarial_training"]:
+                eps = default_epsilon[train_cfg["dataset_name"]] #torch.normal(default_epsilon[train_cfg["dataset_name"]]).item()
+                attack_function = np.random.choice(attacks)
+                y_prime = sample_target(y, train_cfg["output_dim"])
+                x,_,_,_,_ = attack_function(model, x, y_prime, epsilon=eps)
+
             opt.zero_grad(set_to_none=True)
             with autocast(device_type=device.type,enabled=train_cfg.get("amp", True)):
                 preds = model(x)
