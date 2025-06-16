@@ -292,7 +292,12 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    config = get_config("imagenet20", num_images=100, pairing_mode="random_target", should_save_images=False)
+    config = get_config(
+        "imagenet20",
+        num_images=200,
+        pairing_mode="random_target",
+        should_save_images=False,
+    )
 
     validate_configuration(config)
 

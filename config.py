@@ -147,7 +147,7 @@ class DatasetRegistry:
         """Get an instance of the specified dataset class."""
         if dataset_name not in cls._DATASETS:
             raise ValueError(f"Dataset '{dataset_name}' not recognized. Available: {cls.get_available_datasets()}")
-        return cls._DATASETS[dataset_name]()
+        return cls._DATASETS[dataset_name](split="test")
 
     @classmethod
     def register_dataset(cls, name: str, dataset_class: Callable):
