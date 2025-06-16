@@ -11,10 +11,11 @@ from src.finetuning.configs.base_finetune import train_cfg, wandb_cfg
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.cw import cw_attack
 from src.attacks.pgd import pgd_attack
+from tqdm import tqdm
 
 default_epsilon = {"imagenet100": 4 / 255, "cifar10": 8 / 255, "imagenet20": 4 / 255}
 
-attacks = [fgsm_attack, pgd_attack, cw_attack]
+attacks = [fgsm_attack, pgd_attack]
 
 def sample_target(y,num_classes):
     r = torch.randint(0, num_classes-1, size = y.shape,device=y.device)
@@ -97,7 +98,12 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
                 eps = default_epsilon[train_cfg["dataset_name"]] #torch.normal(default_epsilon[train_cfg["dataset_name"]]).item()
                 attack_function = np.random.choice(attacks)
                 y_prime = sample_target(y, train_cfg["output_dim"])
-                x,_,_,_,_ = attack_function(model, x, y_prime, epsilon=eps)
+                if attack_function == fgsm_attack:
+                    kwargs = {"epsilon":eps, "max_iter": 10}
+                elif attack_function == pgd_attack:
+                    kwargs = {"epsilon":eps, "alpha": eps/10, "max_iter": 10,}
+
+                x,_,_,_,_ = attack_function(model, x, y_prime, **kwargs)
 
             opt.zero_grad(set_to_none=True)
             with autocast(device_type=device.type,enabled=train_cfg.get("amp", True)):
