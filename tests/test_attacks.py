@@ -110,7 +110,7 @@ class TestAttackMethods(unittest.TestCase):
             original,
             self.target_classes,
             epsilon=epsilon,
-            max_iters=max_iters,
+            max_iter=max_iters,
             break_early=break_early,
         )
 

@@ -29,6 +29,8 @@ train_cfg = dict(
     save_dir          = Path("/zhome/0e/9/205681/AdversarialAttacks/") / f"{model}{output_dim}-{run_id}",
 
     dataset_root        = Path(f"/zhome/0e/9/205681/AdversarialAttacks/data/{model}{output_dim}"),
+    dataset_name        = "imagenet20",
+    adversarial_training = True,  
 )
 wandb_cfg = dict(
     project="adversarialAttacks",

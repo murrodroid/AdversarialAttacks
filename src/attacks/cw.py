@@ -36,7 +36,11 @@ def cw_attack(
     optimizer = torch.optim.Adam([w], lr=lr)
 
     B = source_image.shape[0]
-    target = torch.tensor(target_class, device=source_image.device)
+    if isinstance(target_class, torch.Tensor):
+        target = target_class.clone().detach().to(device=source_image.device)
+    else: 
+        target = torch.tensor(target_class, device=source_image.device)
+
 
     # Get original predictions to avoid false positives
     with torch.no_grad():
