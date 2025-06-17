@@ -5,8 +5,10 @@ import argparse
 run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 models = ['mobilenet','resnet','swin']
+output_dim = 20
 
 cfg = dict(
+    model = 'resnet', # default (hopefully never used by default...)
     output_dim        = 20,
 
     epochs            = 5,
@@ -28,7 +30,6 @@ wandb_cfg = dict(
     project="adversarialAttacks",
     entity=None,
     mode="online",
-    run_name=f"{model}20_{run_id}",
 )
 
 runs_root   = Path("/zhome/0e/9/205681/AdversarialAttacks/finetune_results/base_finetune")     # top-level folder
@@ -45,31 +46,42 @@ def create_argument_parser_cfg(default_config: dict = cfg):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument("--adv",        action="store_true")
+    parser.add_argument("--adv", action="store_true")
     parser.add_argument("--all_layers", action="store_true")
-    parser.add_argument("--hpc",        action="store_true")
-    parser.add_argument("--model",      type=str, choices=models,required=True)
-    parser.add_argument("--epochs",     type=int)
-    parser.add_argument("--robust_weights",type=str,default=None)
+    parser.add_argument("--hpc", action="store_true")
+    parser.add_argument("--model", type=str, choices=models, required=True)
+    parser.add_argument("--epochs", type=int)
+    parser.add_argument("--robust_weights", type=str, default=None)
     args = parser.parse_args()
 
     cfg_out = default_config.copy()
-    if args.adv is not None:
-        cfg_out["adversarial_training"] = args.adv
-    if args.all_layers is not None:
-        cfg_out["finetune_all_layers"] = args.all_layers
-    if args.hpc is not None:
-        cfg_out["using_hpc"] = args.hpc
-        if args.hpc: cfg_out['batch_size'] = 1024
-    if args.model:
-        cfg_out["model_name"] = args.model
-        if args.hpc:
-            cfg_out["save_dir"] = Path("/zhome/0e/9/205681/AdversarialAttacks") / f"{args.model}{cfg_out['output_dim']}-{run_id}"
-        else:
-            cfg_out["save_dir"] = Path("./checkpoints") / f"{args.model}{cfg_out['output_dim']}-{run_id}"
+
+    # basic flags -----------------------------------------------------------
+    cfg_out["adversarial_training"] = args.adv
+    cfg_out["finetune_all_layers"]  = args.all_layers
+    cfg_out["using_hpc"]            = args.hpc
+    if args.hpc:
+        cfg_out["batch_size"] = 1024
+
+    # model-specific paths --------------------------------------------------
+    cfg_out["model_name"] = args.model
+    cfg_out["dataset_root"] = Path(
+        f"/zhome/0e/9/205681/AdversarialAttacks/data/{args.model}{cfg_out['output_dim']}"
+    )
+    root_dir = (
+        Path("/zhome/0e/9/205681/AdversarialAttacks")
+        if args.hpc
+        else Path("./checkpoints")
+    )
+    cfg_out["save_dir"] = root_dir / f"{args.model}{cfg_out['output_dim']}-{run_id}"
+
+    # epochs / optional weights --------------------------------------------
     if args.epochs:
         cfg_out["epochs"] = args.epochs
     if args.robust_weights:
         cfg_out["robust_weights"] = args.robust_weights
+
+    # keep wandb_cfg consistent --------------------------------------------
+    wandb_cfg["run_name"] = f"{args.model}{cfg_out['output_dim']}_{run_id}"
 
     return cfg_out
