@@ -20,7 +20,7 @@ def get_model(name):
     f, w = builders[name]
     return f(weights=w).eval().cuda() if torch.cuda.is_available() else f(weights=w).eval().cpu()
 
-def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20},width_mult=1.0):
+def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20}, adv = False):
     """Get a finetuned model with the specified number of output classes.
 
     For models that don't have matching checkpoint files (like ImageNet20),
@@ -33,7 +33,8 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20},width_m
         swin      = swin_t,
     )
 
-    ckpt = Path("src/models/weights") / f"{name}{cfg.get('output_dim')}.pt.xz"
+    if adv: ckpt = Path("src/models/weights") / f"{name}{cfg.get('output_dim')}_adv.pt.xz" 
+    else: ckpt = Path("src/models/weights") / f"{name}{cfg.get('output_dim')}.pt.xz"
     model = _replace_head(builders[name](weights=None), name, cfg)
 
     if ckpt.exists():
