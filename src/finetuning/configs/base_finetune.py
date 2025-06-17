@@ -56,7 +56,7 @@ def create_argument_parser_cfg(default_config: dict = cfg):
     parser.add_argument("--hpc",        action="store_true")
     parser.add_argument("--model",      type=str, choices=models,required=True)
     parser.add_argument("--epochs",     type=int)
-
+    parser.add_argument("--robust_weights",type=str,default=None)
     args = parser.parse_args()
 
     cfg_out = default_config.copy()
@@ -66,6 +66,7 @@ def create_argument_parser_cfg(default_config: dict = cfg):
         cfg_out["finetune_all_layers"] = args.all_layers
     if args.hpc is not None:
         cfg_out["using_hpc"] = args.hpc
+        if args.hpc: cfg_out['batch_size'] = 1024
     if args.model:
         cfg_out["model_name"] = args.model
         if args.hpc:
@@ -74,5 +75,7 @@ def create_argument_parser_cfg(default_config: dict = cfg):
             cfg_out["save_dir"] = Path("./checkpoints") / f"{args.model}{cfg_out['output_dim']}-{run_id}"
     if args.epochs:
         cfg_out["epochs"] = args.epochs
+    if args.robust_weights:
+        cfg_out["robust_weights"] = args.robust_weights
 
     return cfg_out

@@ -79,7 +79,6 @@ def get_finetuned_model(device=getDevice(), cfg={"output_dim": 20}, adv = False)
 def get_robust_model(
     device=getDevice(),
     cfg={"output_dim": 20, "width_mult": 1.5},
-    weights: Path | str | None = None,
 ):
     if cfg["model_name"] == "swin":
         model = robust_swin(temperature=1.5, num_classes=cfg["output_dim"])
@@ -88,8 +87,8 @@ def get_robust_model(
     elif cfg["model_name"] == "resnet":
         model = se_resnet50()
 
-    if weights:
-        path = Path(weights)
+    if cfg['robust_weights']:
+        path = Path(cfg['robust_weights'])
         loader_kwargs = {"map_location": device}
         try:
             loader_kwargs["weights_only"] = True  # PyTorch ≥ 2.1
