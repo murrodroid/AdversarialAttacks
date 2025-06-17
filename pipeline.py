@@ -21,7 +21,6 @@ from config import (
     AttackConfig,
     GenerationConfig,
     create_argument_parser,
-    get_config,
     parse_args_to_config,
     validate_configuration,
     create_wandb_config,
@@ -98,7 +97,7 @@ def run_single_generation(generation_config, attack_config):
         f"{generation_config['image_output_dir']}/adv_{generation_config['attack_name']}_src{source}_tgt{target}_idx{index}.png"
         for source, target, index in generation_config["meta"]
     ]
-    if generation_config['should_save_images']:
+    if generation_config["should_save_images"]:
         with ThreadPoolExecutor() as executor:
             for i, (_, _, _) in enumerate(generation_config["meta"]):
                 adversarial_image = images_to_save[i]
@@ -164,12 +163,12 @@ def run_pipeline(config: GenerationConfig):
 
     wandb_cfg = create_wandb_config(config)
     run = wandb.init(
-        project=wandb_cfg['project'],
-        name=wandb_cfg['name'],
-        entity=wandb_cfg['entity'],
-        mode=wandb_cfg['mode'],
-        job_type=wandb_cfg['job_type'],
-        tags=wandb_cfg['tags'],
+        project=wandb_cfg["project"],
+        name=wandb_cfg["name"],
+        entity=wandb_cfg["entity"],
+        mode=wandb_cfg["mode"],
+        job_type=wandb_cfg["job_type"],
+        tags=wandb_cfg["tags"],
     )
     step = 0
 
@@ -243,8 +242,7 @@ def run_pipeline(config: GenerationConfig):
             results_df = pd.DataFrame(all_results)
             if config.metadata_output_path:
                 os.makedirs(config.metadata_output_path, exist_ok=True)
-                results_df.to_csv(
-                    f"{config.metadata_output_path}/{model_name}_{attack_name}.csv", index=False)
+                results_df.to_csv(f"{config.metadata_output_path}/{model_name}_{attack_name}.csv", index=False)
             else:
                 print(results_df.head())
 
@@ -258,8 +256,7 @@ def run_pipeline(config: GenerationConfig):
     results_df = pd.DataFrame(all_results)
     if config.metadata_output_path and len(config.models) + len(config.attacks) > 2:
         os.makedirs(config.metadata_output_path, exist_ok=True)
-        filename = config.metadata_output_path + "/" + \
-            "_".join(config.models) + "_".join(config.attacks) + ".csv"
+        filename = config.metadata_output_path + "/" + "_".join(config.models) + "_".join(config.attacks) + ".csv"
         results_df.to_csv(filename, index=False)
     else:
         print(results_df.head())
@@ -272,15 +269,11 @@ def run_pipeline(config: GenerationConfig):
     print(f"🎯 Models tested: {', '.join(config.models)}")
     print(f"⚔️  Attacks used: {', '.join(config.attacks)}")
     print(f"📁 Dataset: {config.dataset}")
-    print(
-        f"⏱️  Generation time: {generation_time:.2f} seconds ({generation_time/60:.2f} minutes)"
-    )
+    print(f"⏱️  Generation time: {generation_time:.2f} seconds ({generation_time/60:.2f} minutes)")
     print(f"🔄 Preprocessing time: {preprocessing_time:.2f} seconds")
 
     if len(all_results) > 0:
-        success_rate = sum(1 for r in all_results if r["attack_successful"]) / len(
-            all_results
-        )
+        success_rate = sum(1 for r in all_results if r["attack_successful"]) / len(all_results)
         avg_psnr = sum(r["psnr_score"] for r in all_results) / len(all_results)
         avg_ssim = sum(r["ssim_score"] for r in all_results) / len(all_results)
         print(f"✅ Overall success rate: {success_rate:.2%}")
@@ -296,21 +289,52 @@ def run_pipeline(config: GenerationConfig):
     run.finish()
 
 
+def print_config(config: GenerationConfig):
+    print("\n" + "=" * 60)
+    print("🔧 CONFIGURATION")
+    print("=" * 60)
+
+    # Dataset and Models
+    print(f"📁 Dataset: {config.dataset}")
+    print(f"🎯 Models: {', '.join(config.models)}")
+    print(f"⚔️  Attacks: {', '.join(config.attacks)}")
+
+    # Attack Parameters
+    print("\n📊 Attack Parameters:")
+    print(f"  • Epsilon: {config.epsilon:.6f}")
+    print(f"  • Alpha: {config.alpha:.6f}")
+    print(f"  • Iterations: {config.iterations}")
+
+    # Generation Settings
+    print("\n⚙️ Generation Settings:")
+    print(f"  • Images per class: {config.num_images_per_class}")
+    print(f"  • Batch size: {config.batch_size}")
+    print(f"  • Pairing mode: {config.pairing_mode}")
+    print(f"  • Parallel processes: {config.parallel_processes}")
+    print(f"  • Device: {config.device}")
+    print(f"  • Save images: {config.should_save_images}")
+
+    # Output Settings
+    print("\n📂 Output Settings:")
+    print(f"  • Image directory: {config.image_output_dir}")
+    print(f"  • Metadata path: {config.metadata_output_path}")
+    print(f"  • Random seed: {config.seed}")
+
+    print("=" * 60 + "\n")
+
+
 if __name__ == "__main__":
     start_time = time.time()
 
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    config = get_config(
-        "imagenet20",
-        num_images=200,
-        pairing_mode="random_target",
-        should_save_images=False,
-    )
+    parser = create_argument_parser()
+    args = parser.parse_args()
+    config = parse_args_to_config(args)
 
     validate_configuration(config)
-
+    print_config(config)
     run_pipeline(config)
 
     end_time = time.time()

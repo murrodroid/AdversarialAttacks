@@ -1,7 +1,6 @@
 import torch
 from torchvision.models import mobilenet_v3_large, resnet50, swin_t
-from torchvision.models import (MobileNet_V3_Large_Weights, ResNet50_Weights,
-                                 Swin_T_Weights)
+from torchvision.models import MobileNet_V3_Large_Weights, ResNet50_Weights, Swin_T_Weights
 from pathlib import Path
 import lzma
 
@@ -20,7 +19,8 @@ def get_model(name):
     f, w = builders[name]
     return f(weights=w).eval().cuda() if torch.cuda.is_available() else f(weights=w).eval().cpu()
 
-def get_finetuned_model(device=getDevice(), cfg={"output_dim": 20}, adv = False):
+
+def get_finetuned_model(device=getDevice(), cfg={"output_dim": 20, "model_name": "mobilenet", "adv": False}):
     """Get a finetuned model with the specified number of output classes.
 
     For models that don't have matching checkpoint files (like ImageNet20),
@@ -33,9 +33,11 @@ def get_finetuned_model(device=getDevice(), cfg={"output_dim": 20}, adv = False)
         swin      = swin_t,
     )
 
-    if adv: ckpt = Path("src/models/weights") / f"{cfg['model_name']}{cfg.get('output_dim')}_adv.pt.xz" 
-    else: ckpt = Path("src/models/weights") / f"{cfg['model_name']}{cfg.get('output_dim')}.pt.xz"
-    model = _replace_head(builders[cfg['model_name']](weights=None), cfg['model_name'], cfg)
+    if cfg["adv"]:
+        ckpt = Path("src/models/weights") / f"{cfg['model_name']}{cfg.get('output_dim')}_adv.pt.xz"
+    else:
+        ckpt = Path("src/models/weights") / f"{cfg['model_name']}{cfg.get('output_dim')}.pt.xz"
+    model = _replace_head(builders[cfg["model_name"]](weights=None), cfg["model_name"], cfg)
 
     if ckpt.exists():
         # Try to load the checkpoint
@@ -76,6 +78,7 @@ def get_finetuned_model(device=getDevice(), cfg={"output_dim": 20}, adv = False)
 
     return model.eval().to(device)
 
+
 def get_robust_model(
     device=getDevice(),
     cfg={"output_dim": 20, "width_mult": 1.5},
@@ -103,5 +106,5 @@ def get_robust_model(
 
         state_dict = state_dict.get("state_dict", state_dict)
         model.load_state_dict(state_dict, strict=False)
-        
+
     return model.eval().to(device)

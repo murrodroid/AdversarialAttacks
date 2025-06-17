@@ -93,21 +93,27 @@ class ModelRegistry:
 
     _MODELS: Dict[str, Callable] = {
         "mobilenet": lambda: get_model("mobilenet"),
-        "resnet": lambda: get_finetuned_model("resnet"),
+        "resnet": lambda: get_finetuned_model(cfg={"model_name": "resnet", "output_dim": 20}),
         "swin": lambda: get_model("swin"),
-        "cifar10_resnet20": lambda: torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True),
+        "cifar10_resnet20": lambda: torch.hub.load(
+            "chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True
+        ),
         # ImageNet20 specific models
-        "mobilenet_imagenet20": lambda: get_finetuned_model("mobilenet", cfg={"output_dim": 20}),
-        "resnet_imagenet20": lambda: get_finetuned_model("resnet", cfg={"output_dim": 20}),
-        "swin_imagenet20": lambda: get_finetuned_model("swin", cfg={"output_dim": 20}),
+        "mobilenet_imagenet20": lambda: get_finetuned_model(cfg={"model_name": "mobilenet", "output_dim": 20}),
+        "resnet_imagenet20": lambda: get_finetuned_model(cfg={"model_name": "resnet", "output_dim": 20}),
+        "swin_imagenet20": lambda: get_finetuned_model(cfg={"model_name": "swin", "output_dim": 20}),
         # ImageNet100 specific models
-        "mobilenet_imagenet100": lambda: get_finetuned_model("mobilenet"),
-        "resnet_imagenet100": lambda: get_finetuned_model("resnet"),
-        "swin_imagenet100": lambda: get_finetuned_model("swin"),
+        "mobilenet_imagenet100": lambda: get_finetuned_model(cfg={"model_name": "mobilenet", "output_dim": 100}),
+        "resnet_imagenet100": lambda: get_finetuned_model(cfg={"model_name": "resnet", "output_dim": 100}),
+        "swin_imagenet100": lambda: get_finetuned_model(cfg={"model_name": "swin", "output_dim": 100}),
         # adv training
-        "resnet_imagenet20_adv": lambda: get_finetuned_model('resnet',adv=True),
-        "mobilenet_imagenet20_adv": lambda: get_finetuned_model('mobilenet',adv=True),
-        "swin_imagenet20_adv": lambda: get_finetuned_model('swin',adv=True),
+        "resnet_imagenet20_adv": lambda: get_finetuned_model(
+            cfg={"model_name": "resnet", "output_dim": 20, "adv": True}
+        ),
+        "mobilenet_imagenet20_adv": lambda: get_finetuned_model(
+            cfg={"model_name": "mobilenet", "output_dim": 20, "adv": True}
+        ),
+        "swin_imagenet20_adv": lambda: get_finetuned_model(cfg={"model_name": "swin", "output_dim": 20, "adv": True}),
         # robust models
         "resnet_imagenet20_robust": lambda: get_robust_model("resnet"),
         "mobilenet_imagenet20_robust": lambda: get_robust_model("mobilenet"),
@@ -126,7 +132,7 @@ class ModelRegistry:
             raise ValueError(f"Model '{model_name}' not recognized. Available: {cls.get_available_models()}")
 
         model = cls._MODELS[model_name]()
-        model = torch.compile(model,backend = "eager")
+        model = torch.compile(model, backend="eager")
         model = model.to(device)
         model.eval()
         return model
@@ -186,125 +192,186 @@ class AttackRegistry:
         cls._ATTACKS[name] = attack_function
 
 
+def get_default_values(dataset=None):
+    default_epsilon = {"imagenet100": 4 / 255, "cifar10": 8 / 255, "imagenet20": 4 / 255}
+
+    default_models = {
+        "imagenet100": ["mobilenet_imagenet100", "resnet_imagenet100", "swin_imagenet100"],
+        "imagenet20": [
+            "mobilenet_imagenet20_adv",
+            "resnet_imagenet20_adv",
+            "swin_imagenet20_adv",
+            "mobilenet_imagenet20_robust",
+            "resnet_imagenet20_robust",
+            "swin_imagenet20_robust",
+        ],
+        "cifar10": ["cifar10_resnet20"],
+    }
+
+    GB_vram = getVRAM()
+    if GB_vram <= 4:
+        batch_size = 16
+    elif 4 < GB_vram <= 8:
+        batch_size = 32
+    else:
+        batch_size = 128
+
+    if dataset == "cifar10":
+        batch_size *= 8
+
+    if dataset is None:
+        dataset = "imagenet20"
+
+    iterations = 100
+    epsilon = default_epsilon[dataset]
+
+    num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    parallel = max(1, num_gpus)
+
+    return {
+        "model": default_models[dataset],
+        "dataset": dataset,
+        "attack": ["fgsm", "pgd", "cw"],
+        "num_images": 100,
+        "epsilon": epsilon,
+        "iterations": iterations,
+        "batch_size": batch_size,
+        "pairing_mode": "random_target",
+        "parallel": parallel,
+        "device": None,
+        "image_dir": "results/adversarial_images",
+        "metadata_output": "results",
+        "seed": 42,
+        "should_save_images": False,
+    }
+
+
 def create_argument_parser() -> argparse.ArgumentParser:
-    """Create and configure the argument parser for the pipeline."""
     parser = argparse.ArgumentParser(
         description="Parallel Adversarial Image Generation Pipeline",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # Model configuration
-    default_models = ModelRegistry.get_available_models()[1]
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="imagenet20",
+        choices=DatasetRegistry.get_available_datasets(),
+        help="Select dataset to use.",
+    )
+
+    args, _ = parser.parse_known_args()
+    defaults = get_default_values(args.dataset)
+
     parser.add_argument(
         "--model",
         type=str,
-        default=[default_models],
+        default=defaults["model"],
         nargs="+",
         choices=ModelRegistry.get_available_models(),
         help="Select one or more model architectures to use.",
     )
 
-    # Dataset configuration
-    default_dataset = DatasetRegistry.get_available_datasets()[1]
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default=default_dataset,
-        choices=DatasetRegistry.get_available_datasets(),
-        help="Select dataset to use.",
-    )
-
-    # Attack configuration
-    default_attacks = AttackRegistry.get_available_attacks()
     parser.add_argument(
         "--attack",
         type=str,
-        default=default_attacks[0:1],
+        default=defaults["attack"],
         nargs="+",
         choices=AttackRegistry.get_available_attacks(),
         help="Select one or more attack methods.",
     )
 
-    # Generation parameters
     parser.add_argument(
         "--num_images",
         type=int,
-        default=1,
+        default=defaults["num_images"],
         help="Number of original images per source class to generate attacks for.",
     )
+
     parser.add_argument(
         "--epsilon",
         type=float,
-        default=0.03,
+        default=defaults["epsilon"],
         help="Epsilon value for perturbation magnitude (e.g., for FGSM, PGD). Not used for CW attack.",
     )
-    parser.add_argument(
-        "--alpha",
-        type=float,
-        default=0.007,
-        help="Step size alpha for iterative attacks like PGD. Typically epsilon/iterations (single value applies to all PGD runs).",
-    )
+
     parser.add_argument(
         "--iterations",
         type=int,
-        default=40,
-        help="Number of iterations for iterative attacks (applies to FGSM, PGD iterations, and CW steps).",
+        default=defaults["iterations"],
+        help="Number of iterations for iterative attacks.",
     )
+
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=64,
+        default=defaults["batch_size"],
         help="Number of images to process in each batch.",
     )
+
     parser.add_argument(
         "--pairing_mode",
         type=str,
-        default="all_targets",
+        default=defaults["pairing_mode"],
         choices=["all_targets", "random_target"],
-        help="Pairing mode for adversarial samples: 'all_targets' pairs each image with all possible target classes, 'random_target' assigns each image a single random target class.",
+        help="Pairing mode for adversarial samples.",
     )
 
-    # Execution parameters
     parser.add_argument(
         "--parallel",
         type=int,
-        default=1,  # max(1, cpu_count() // 2),
+        default=defaults["parallel"],
         help="Number of parallel processes to launch.",
     )
+
     parser.add_argument(
         "--device",
         type=str,
-        default=None,
+        default=defaults["device"],
         choices=["cpu", "cuda"],
         help="Force device usage (cpu or cuda). If None, defaults to cuda if available, else cpu.",
     )
 
-    # Output configuration
     parser.add_argument(
         "--image_dir",
         type=str,
-        default="results/adversarial_images",
+        default=defaults["image_dir"],
         help="Directory where generated adversarial images will be saved.",
     )
+
     parser.add_argument(
         "--metadata_output",
         type=str,
-        default="results/generation_metadata.csv",
+        default=defaults["metadata_output"],
         help="Path to save the CSV file containing metadata about generated images.",
     )
-    parser.add_argument("--seed", type=int, default=42, help="Base random seed for reproducibility.")
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=defaults["seed"],
+        help="Base random seed for reproducibility.",
+    )
+
+    parser.add_argument(
+        "--should_save_images",
+        type=bool,
+        default=defaults["should_save_images"],
+        help="Whether to save generated adversarial images.",
+    )
 
     return parser
 
 
 def parse_args_to_config(args: argparse.Namespace) -> GenerationConfig:
     """Convert parsed arguments to a GenerationConfig object."""
+    alpha = args.epsilon / args.iterations
     return GenerationConfig(
         models=args.model,
         dataset=args.dataset,
         attacks=args.attack,
         epsilon=args.epsilon,
-        alpha=args.alpha,
+        alpha=alpha,
         iterations=args.iterations,
         num_images_per_class=args.num_images,
         parallel_processes=args.parallel,
@@ -314,6 +381,7 @@ def parse_args_to_config(args: argparse.Namespace) -> GenerationConfig:
         seed=args.seed,
         batch_size=args.batch_size,
         pairing_mode=args.pairing_mode,
+        should_save_images=args.should_save_images,
     )
 
 
@@ -358,6 +426,7 @@ def validate_configuration(config: GenerationConfig) -> None:
         elif num_gpus > config.parallel_processes:
             print(f"Info: {num_gpus} GPUs detected, but only using {config.parallel_processes} parallel processes.")
 
+
 def create_wandb_run(model, attack, dataset, hyper_cfg, mode="online", project="adversarialAttacks", entity=None):
     run = wandb.init(
         project=project,
@@ -376,65 +445,11 @@ def create_wandb_config(gen_cfg: GenerationConfig):
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
 
     wandb_cfg = dict(
-        project  = "adversarialAttacks",
-        entity   = None,   
-        mode     = "online", 
-        name = f"testAttack_{run_id}",
-        tags = [*gen_cfg.attacks, *gen_cfg.models, gen_cfg.dataset],
-        job_type = 'attack',
+        project="adversarialAttacks",
+        entity=None,
+        mode="online",
+        name=f"testAttack_{run_id}",
+        tags=[*gen_cfg.attacks, *gen_cfg.models, gen_cfg.dataset],
+        job_type="attack",
     )
-    return wandb_cfg 
-
-default_epsilon = {"imagenet100": 4 / 255, "cifar10": 8 / 255, "imagenet20": 4 / 255}
-
-
-def get_config(
-    dataset,
-    GB_vram=getVRAM(),
-    num_images=100,
-    pairing_mode="random_target",
-    attacks=["fgsm", "pgd", "cw"],
-    should_save_images = True
-) -> GenerationConfig:
-    """Get a default configuration for the generation pipeline."""
-    if dataset not in DatasetRegistry.get_available_datasets():
-        raise ValueError(f"Dataset '{dataset}' not recognized. Available datasets: {DatasetRegistry.get_available_datasets()}")
-
-    if dataset == "imagenet100":
-        models = ["mobilenet_imagenet100", "resnet_imagenet100", "swin_imagenet100"]
-    elif dataset == "imagenet20":
-        models = ["swin_imagenet20_robust"]#, "swin_imagenet20"]
-    else:  # cifar10
-        models = ["cifar10_resnet20"]
-
-    max_iterations = 100
-    epsilon = default_epsilon[dataset]
-    alpha = epsilon/max_iterations
-
-    if GB_vram <= 4: 
-        batch_size = 16
-    elif 4 < GB_vram <= 8:
-        batch_size = 32
-    else: 
-        batch_size = 128
-
-    if dataset == "cifar10": 
-        batch_size *= 8
-
-    return GenerationConfig(
-        models=models,
-        dataset=dataset,
-        attacks=attacks,
-        epsilon=epsilon,
-        alpha=alpha,
-        iterations=100,
-        num_images_per_class=num_images,
-        parallel_processes=max(1, cpu_count() // 2),
-        device=None,  # Will default to cuda if available
-        image_output_dir="results/adversarial_images",
-        metadata_output_path="results",
-        seed=42,
-        batch_size=batch_size,
-        pairing_mode=pairing_mode,
-        should_save_images=should_save_images
-    )
+    return wandb_cfg
