@@ -6,7 +6,7 @@ import lzma
 import pathlib
 import shutil
 
-from src.finetuning.configs.base_finetune import train_cfg
+from src.finetuning.configs.base_finetune import cfg
 from src.datasets.imagenet import ImageNet20
 from src.datasets.cifar10 import Cifar10
 

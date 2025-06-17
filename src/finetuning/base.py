@@ -7,7 +7,7 @@ from torch.amp import autocast
 from torch.amp import GradScaler
 import numpy as np
 from src.utils.torch_util import getDevice
-from src.finetuning.configs.base_finetune import train_cfg, wandb_cfg
+from src.finetuning.configs.base_finetune import cfg, wandb_cfg
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.cw import cw_attack
 from src.attacks.pgd import pgd_attack

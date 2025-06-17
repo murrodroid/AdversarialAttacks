@@ -20,7 +20,7 @@ def get_model(name):
     f, w = builders[name]
     return f(weights=w).eval().cuda() if torch.cuda.is_available() else f(weights=w).eval().cpu()
 
-def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20}, adv = False):
+def get_finetuned_model(device=getDevice(), cfg={"output_dim": 20}, adv = False):
     """Get a finetuned model with the specified number of output classes.
 
     For models that don't have matching checkpoint files (like ImageNet20),
@@ -33,9 +33,9 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20}, adv = 
         swin      = swin_t,
     )
 
-    if adv: ckpt = Path("src/models/weights") / f"{name}{cfg.get('output_dim')}_adv.pt.xz" 
-    else: ckpt = Path("src/models/weights") / f"{name}{cfg.get('output_dim')}.pt.xz"
-    model = _replace_head(builders[name](weights=None), name, cfg)
+    if adv: ckpt = Path("src/models/weights") / f"{cfg['model_name']}{cfg.get('output_dim')}_adv.pt.xz" 
+    else: ckpt = Path("src/models/weights") / f"{cfg['model_name']}{cfg.get('output_dim')}.pt.xz"
+    model = _replace_head(builders[cfg['model_name']](weights=None), cfg['model_name'], cfg)
 
     if ckpt.exists():
         # Try to load the checkpoint
@@ -47,7 +47,7 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20}, adv = 
             if "size mismatch" in str(e):
                 # If there's a size mismatch (e.g., different number of classes),
                 # load only the backbone weights
-                print(f"Size mismatch detected for {name}, loading backbone only...")
+                print(f"Size mismatch detected for {cfg['model_name']}, loading backbone only...")
                 with lzma.open(ckpt, "rb") as f:
                     state_dict = torch.load(f, map_location=device, weights_only=True)
                     model_state = model.state_dict()
@@ -62,8 +62,8 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20}, adv = 
                 raise e
     else:
         # No checkpoint exists, use pretrained ImageNet weights for backbone
-        print(f"No checkpoint found for {name}, using pretrained ImageNet weights...")
-        pretrained_model = builders[name](weights="DEFAULT")
+        print(f"No checkpoint found for {cfg['model_name']}, using pretrained ImageNet weights...")
+        pretrained_model = builders[cfg['model_name']](weights="DEFAULT")
         model_state = model.state_dict()
         pretrained_state = pretrained_model.state_dict()
 
@@ -76,18 +76,18 @@ def get_finetuned_model(name, device=getDevice(), cfg={"output_dim": 20}, adv = 
 
     return model.eval().to(device)
 
-def get_robust_model(name, device=getDevice(), cfg={"output_dim": 20, "width_mult": 1.5}):
-    if name == "swin":
+def get_robust_model(device=getDevice(), cfg={"output_dim": 20, "width_mult": 1.5}):
+    if cfg['model_name'] == "swin":
         model = robust_swin(
             temperature=1.5,
             num_classes=cfg["output_dim"]
         )
-    elif name == "mobilenet":
+    elif cfg['model_name'] == "mobilenet":
         model = robust_mobilenet(
             width_mult=cfg["width_mult"],
             stem_kernel_size=7
             )
-    elif name == "resnet":
+    elif cfg['model_name'] == "resnet":
         model = se_resnet50()
     
 
