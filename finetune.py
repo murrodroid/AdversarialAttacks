@@ -87,7 +87,7 @@ def main() -> None:
     if train_cfg["adversarial_training"]:
         model = get_finetuned_model(model_name, cfg=train_cfg)
     else:
-        model = get_robust_model(model_name, cfg=train_cfg)
+        model = get_robust_model(name=model_name, cfg=train_cfg)
 
     # Create train, validation, and test loaders
     train_loader, val_loader, test_loader = create_imagenet20_loaders(
