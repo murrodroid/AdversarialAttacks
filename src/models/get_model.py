@@ -76,19 +76,22 @@ def get_finetuned_model(device=getDevice(), cfg={"output_dim": 20}, adv = False)
 
     return model.eval().to(device)
 
-def get_robust_model(device=getDevice(), cfg={"output_dim": 20, "width_mult": 1.5}):
-    if cfg['model_name'] == "swin":
-        model = robust_swin(
-            temperature=1.5,
-            num_classes=cfg["output_dim"]
-        )
-    elif cfg['model_name'] == "mobilenet":
-        model = robust_mobilenet(
-            width_mult=cfg["width_mult"],
-            stem_kernel_size=7
-            )
-    elif cfg['model_name'] == "resnet":
+def get_robust_model(
+    device=getDevice(),
+    cfg={"output_dim": 20, "width_mult": 1.5},
+    weights: Path | str | None = None,
+):
+    if cfg["model_name"] == "swin":
+        model = robust_swin(temperature=1.5, num_classes=cfg["output_dim"])
+    elif cfg["model_name"] == "mobilenet":
+        model = robust_mobilenet(width_mult=cfg["width_mult"], stem_kernel_size=7)
+    elif cfg["model_name"] == "resnet":
         model = se_resnet50()
-    
+
+    if weights:
+        state_dict = torch.load(Path(weights), map_location=device)
+        if "state_dict" in state_dict:  # common Lightning / checkpoints format
+            state_dict = state_dict["state_dict"]
+        model.load_state_dict(state_dict, strict=False)
 
     return model.eval().to(device)
