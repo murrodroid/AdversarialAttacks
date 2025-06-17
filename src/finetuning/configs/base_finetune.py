@@ -6,14 +6,8 @@ run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
 
 models = ['mobilenet','resnet','swin']
 
-
-# ----- input -----
-model = models[1] 
-output_dim = 20
-# ----- ----- -----
-
 cfg = dict(
-    output_dim        = output_dim,
+    output_dim        = 20,
 
     epochs            = 5,
     batch_size        = 32,
