@@ -89,9 +89,20 @@ def get_robust_model(
         model = se_resnet50()
 
     if weights:
-        state_dict = torch.load(Path(weights), map_location=device)
-        if "state_dict" in state_dict:  # common Lightning / checkpoints format
-            state_dict = state_dict["state_dict"]
-        model.load_state_dict(state_dict, strict=False)
+        path = Path(weights)
+        loader_kwargs = {"map_location": device}
+        try:
+            loader_kwargs["weights_only"] = True  # PyTorch ≥ 2.1
+        except TypeError:
+            pass
 
+        if path.suffix == ".xz":
+            with lzma.open(path, "rb") as f:
+                state_dict = torch.load(f, **loader_kwargs)
+        else:
+            state_dict = torch.load(path, **loader_kwargs)
+
+        state_dict = state_dict.get("state_dict", state_dict)
+        model.load_state_dict(state_dict, strict=False)
+        
     return model.eval().to(device)
