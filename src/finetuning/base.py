@@ -1,17 +1,19 @@
+import numpy as np
 from tqdm import tqdm, trange
-import os, torch, wandb
+import os
+import torch
+import wandb
 import torch.distributed as dist
 from torch import nn, optim
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.amp import autocast
-from torch.amp import GradScaler
-import numpy as np
+from torch.amp import autocast, GradScaler
+from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
+
 from src.utils.torch_util import getDevice
 from src.finetuning.configs.base_finetune import cfg, wandb_cfg
 from src.attacks.fgsm import fgsm_attack
 from src.attacks.cw import cw_attack
 from src.attacks.pgd import pgd_attack
-from tqdm import tqdm
 
 default_epsilon = {"imagenet100": 4 / 255, "cifar10": 8 / 255, "imagenet20": 4 / 255}
 
@@ -32,8 +34,9 @@ def _replace_head(model, name: str, cfg: dict):
 
     elif name == "swin":
         model.head = nn.Linear(model.head.in_features, cfg['output_dim'])
-    
+
     return model
+
 
 def _build_opt(name, params, cfg):
     if name == "resnet":
@@ -46,6 +49,7 @@ def _build_opt(name, params, cfg):
         return optim.AdamW(params, lr=cfg['learning_rate'], betas=(0.9, 0.999),
                            eps=1e-8, weight_decay=cfg['weight_decay'])
     raise ValueError(f"unknown model {name}")
+
 
 def _freeze_backbone(model, name):
     for p in model.parameters():
@@ -69,9 +73,12 @@ def finetune(model, train_loader, val_loader, train_cfg: dict, wandb_cfg: dict):
         dist.init_process_group("nccl")
         torch.cuda.set_device(rank)
         model = DDP(model, device_ids=[rank])
-    opt     = _build_opt(train_cfg["model_name"], (p for p in model.parameters() if p.requires_grad), train_cfg)
-    sched   = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=train_cfg["epochs"])
-    scaler  = GradScaler(enabled=train_cfg.get("amp", True))
+    opt = _build_opt(train_cfg["model_name"], (p for p in model.parameters(
+    ) if p.requires_grad), train_cfg)
+    warm = LinearLR(opt, start_factor=1e-6, total_iters=5)
+    cos = CosineAnnealingLR(opt, T_max=train_cfg['epochs']-5, eta_min=1e-6)
+    sched = SequentialLR(opt, [warm, cos], milestones=[5])
+    scaler = GradScaler(enabled=train_cfg.get("amp", True))
     loss_fn = nn.CrossEntropyLoss().to(device)
 
     run = wandb.init(
