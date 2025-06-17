@@ -240,6 +240,14 @@ def run_pipeline(config: GenerationConfig):
             if config.device == "cuda":
                 torch.cuda.empty_cache()
 
+            results_df = pd.DataFrame(all_results)
+            if config.metadata_output_path:
+                os.makedirs(config.metadata_output_path, exist_ok=True)
+                results_df.to_csv(
+                    f"{config.metadata_output_path}/{model_name}_{attack_name}.csv", index=False)
+            else:
+                print(results_df.head())
+
         del model
         if config.device == "cuda":
             torch.cuda.empty_cache()
@@ -248,9 +256,11 @@ def run_pipeline(config: GenerationConfig):
     print(f"Generated {len(all_results)} attacks in {generation_time:.2f} seconds")
 
     results_df = pd.DataFrame(all_results)
-    if config.metadata_output_path:
-        os.makedirs(os.path.dirname(config.metadata_output_path), exist_ok=True)
-        results_df.to_csv(config.metadata_output_path, index=False)
+    if config.metadata_output_path and len(config.models) + len(config.attacks) > 2:
+        os.makedirs(config.metadata_output_path, exist_ok=True)
+        filename = config.metadata_output_path + "/" + \
+            "_".join(config.models) + "_".join(config.attacks) + ".csv"
+        results_df.to_csv(filename, index=False)
     else:
         print(results_df.head())
 

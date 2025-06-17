@@ -425,7 +425,7 @@ def get_config(
         parallel_processes=max(1, cpu_count() // 2),
         device=None,  # Will default to cuda if available
         image_output_dir="results/adversarial_images",
-        metadata_output_path="results/generation_metadata.csv",
+        metadata_output_path="results",
         seed=42,
         batch_size=batch_size,
         pairing_mode=pairing_mode,
