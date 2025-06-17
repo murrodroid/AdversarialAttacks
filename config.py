@@ -104,7 +104,14 @@ class ModelRegistry:
         "mobilenet_imagenet100": lambda: get_finetuned_model("mobilenet"),
         "resnet_imagenet100": lambda: get_finetuned_model("resnet"),
         "swin_imagenet100": lambda: get_finetuned_model("swin"),
-        "swin_imagenet20_robust": lambda: get_robust_model("swin")
+        # adv training
+        "resnet_imagenet20_adv": lambda: get_finetuned_model('resnet',adv=True),
+        "mobilenet_imagenet20_adv": lambda: get_finetuned_model('mobilenet',adv=True),
+        "swin_imagenet20_adv": lambda: get_finetuned_model('swin',adv=True),
+        # robust models
+        "resnet_imagenet20_robust": lambda: get_robust_model("resnet"),
+        "mobilenet_imagenet20_robust": lambda: get_robust_model("mobilenet"),
+        "swin_imagenet20_robust": lambda: get_robust_model("swin"),
     }
 
     @classmethod
