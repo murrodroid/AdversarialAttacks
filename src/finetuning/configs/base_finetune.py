@@ -20,9 +20,7 @@ cfg = dict(
 
     workers           = 8,
     amp               = True,
-    save_dir          = Path("/zhome/0e/9/205681/AdversarialAttacks/") / f"{model}{output_dim}-{run_id}",
 
-    dataset_root        = Path(f"/zhome/0e/9/205681/AdversarialAttacks/data/{model}{output_dim}"),
     dataset_name        = "imagenet20",
     adversarial_training = False,  
 )
@@ -65,9 +63,6 @@ def create_argument_parser_cfg(default_config: dict = cfg):
 
     # model-specific paths --------------------------------------------------
     cfg_out["model_name"] = args.model
-    cfg_out["dataset_root"] = Path(
-        f"/zhome/0e/9/205681/AdversarialAttacks/data/{args.model}{cfg_out['output_dim']}"
-    )
     root_dir = (
         Path("/zhome/0e/9/205681/AdversarialAttacks")
         if args.hpc
