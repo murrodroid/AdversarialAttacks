@@ -90,6 +90,8 @@ def get_robust_model(
     elif cfg["model_name"] == "resnet":
         model = se_resnet50()
 
+    model = _replace_head(model,cfg['model_name'],cfg)
+
     if cfg.get('robust_weights',None):
         path = Path(cfg['robust_weights'])
         loader_kwargs = {"map_location": device}
