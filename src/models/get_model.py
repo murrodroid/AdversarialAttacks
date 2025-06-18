@@ -8,7 +8,7 @@ from src.finetuning.base import _replace_head
 from src.utils.torch_util import getDevice
 from src.finetuning.robust_swin import robust_swin
 from src.finetuning.robust_mobilenet import robust_mobilenet
-from src.finetuning.robust_resnet import se_resnet50
+from src.finetuning.robust_resnet import robust_resnet
 
 def get_model(name):
     builders = dict(
@@ -88,7 +88,7 @@ def get_robust_model(
     elif cfg["model_name"] == "mobilenet":
         model = robust_mobilenet(width_mult=cfg["width_mult"], stem_kernel_size=7)
     elif cfg["model_name"] == "resnet":
-        model = se_resnet50()
+        model = robust_resnet()
 
     model = _replace_head(model,cfg['model_name'],cfg)
 

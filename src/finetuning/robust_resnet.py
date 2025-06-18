@@ -67,5 +67,5 @@ class SEBottleneck(nn.Module):
 
         return out
 
-def se_resnet50(pretrained=False, progress=True):
+def robust_resnet(pretrained=False, progress=True):
     return _resnet(block = SEBottleneck, layers = [3, 4, 6, 3], progress = True, weights=None)
