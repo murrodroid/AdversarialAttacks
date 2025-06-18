@@ -83,16 +83,19 @@ def get_robust_model(
     device=getDevice(),
     cfg={"output_dim": 20, "width_mult": 1.5},
 ):
+    # Get temperature from config, default to 1.5
+    temperature = cfg.get("temperature", 1.5)
+    
     if cfg["model_name"] == "swin":
-        model = robust_swin(temperature=1.5, num_classes=cfg["output_dim"])
+        model = robust_swin(temperature=temperature, num_classes=cfg["output_dim"])
     elif cfg["model_name"] == "mobilenet":
         model = robust_mobilenet(width_mult=cfg["width_mult"], stem_kernel_size=7)
+        model = _replace_head(model, cfg['model_name'], cfg)
     elif cfg["model_name"] == "resnet":
         model = robust_resnet()
+        model = _replace_head(model, cfg['model_name'], cfg)
 
-    model = _replace_head(model,cfg['model_name'],cfg)
-
-    if cfg.get('robust_weights',None):
+    if cfg.get('robust_weights', None):
         path = Path(cfg['robust_weights'])
         loader_kwargs = {"map_location": device}
         try:
