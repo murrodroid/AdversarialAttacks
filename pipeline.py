@@ -274,9 +274,11 @@ def run_pipeline(config: GenerationConfig):
 
     if len(all_results) > 0:
         success_rate = sum(1 for r in all_results if r["attack_successful"]) / len(all_results)
+        model_accuracy = sum(1 for r in all_results if r["true_class"] == r["original_pred_class"]) / len(all_results)
         avg_psnr = sum(r["psnr_score"] for r in all_results) / len(all_results)
         avg_ssim = sum(r["ssim_score"] for r in all_results) / len(all_results)
         print(f"✅ Overall success rate: {success_rate:.2%}")
+        print(f"✅ Model accuracy: {model_accuracy:.2%}")
         print(f"📏 Average PSNR: {avg_psnr:.2f}")
         print(f"🔍 Average SSIM: {avg_ssim:.3f}")
 
