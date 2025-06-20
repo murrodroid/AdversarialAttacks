@@ -33,7 +33,7 @@ def get_finetuned_model(device=getDevice(), cfg={"output_dim": 20, "model_name":
         swin      = swin_t,
     )
 
-    if cfg["adv"]:
+    if cfg["adversarial_training"]:
         ckpt = Path("src/models/weights") / f"{cfg['model_name']}{cfg.get('output_dim')}_adv.pt.xz"
     else:
         ckpt = Path("src/models/weights") / f"{cfg['model_name']}{cfg.get('output_dim')}.pt.xz"
