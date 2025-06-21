@@ -6,7 +6,14 @@ import wandb
 import torch.distributed as dist
 from torch import nn, optim
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.amp import autocast, GradScaler
+try:
+    from torch.amp import GradScaler
+    from torch.amp import autocast
+except ImportError:
+    print("Warning: GradScaler and autocast could not be imported")
+    GradScaler = None
+    autocast = None
+
 from torch.optim.lr_scheduler import CosineAnnealingLR, SequentialLR, LinearLR
 
 from src.utils.torch_util import getDevice

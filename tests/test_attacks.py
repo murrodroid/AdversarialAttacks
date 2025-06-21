@@ -2,7 +2,6 @@ import unittest
 import torch
 import numpy as np
 from PIL import Image
-import tempfile
 import os
 import torchvision.transforms as transforms
 
@@ -13,7 +12,10 @@ from src.attacks.cw import cw_attack
 from src.utils.torch_util import getDevice
 from src.utils.randomness import set_seed
 from adversarialAttack import load_model
-from config import default_epsilon
+
+
+default_epsilon = {"imagenet100": 4 / 255,
+                   "cifar10": 8 / 255, "imagenet20": 4 / 255}
 
 
 class TestAttackMethods(unittest.TestCase):
