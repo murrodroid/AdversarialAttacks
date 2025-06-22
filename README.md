@@ -1,8 +1,24 @@
-# Quantifying severeness of Adversarial Attacks
+# 🐍🔒 AdversarialAttacks
+> **"Fooling Neural Networks: A Comprehensive Benchmark of Adversarial Attacks and Defenses"** - We benchmark FGSM, PGD & CW attacks, and study the effectiveness of state-of-the-art robustness methods.
+
+[![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
+[![Python 3.11](https://img.shields.io/badge/python-3.11%2B-brightgreen)]()
+[![Run Tests](https://github.com/murrodroid/AdversarialAttacks/actions/workflows/tests.yml/badge.svg)](https://github.com/murrodroid/AdversarialAttacks/actions/workflows/tests.yml)
+<!-- [![CI](https://github.com/murrodroid/AdversarialAttacks/actions/workflows/ci.yml/badge.svg)]()
+[![Docs](https://img.shields.io/badge/docs-stable-success)](https://murrodroid.github.io/AdversarialAttacks) -->
 
 ## Abstract
 
+**missing**
+
 ## Overview
+
+> Example result: I-FGSM at ε = 0.007 changes MobileNet confidence on ImageNet-20 class from 70.9% "*ski mask*" to 100% "*american lobster, [...]*"
+
+![I-FGSM Example](assets/skimask_to_lobster.png)
+
+
+The project has created methods to evaluate the effectiveness of different attacks, and compare against robustness methods. The codebase is dynamic, meaning any added attacks, datasets or robustness methods etc., should be easy to add and implement into the structure.
 
 <!-- ## Research Objectives -->
 
@@ -38,7 +54,7 @@
 
 ### Prerequisites
 
-- Python 3.8 or higher (recommended: 3.11)
+- Python 3.11
 - CUDA-compatible GPU (for optimal performance)
 
 ### Easy Setup with Conda (CUDA-compatible)
@@ -118,11 +134,5 @@ AdversarialAttacks/
 ├── pipeline.py           # Main execution pipeline
 └── adversarialAttack.py  # Basic attack interface
 ```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
 
 **Note**: This project is designed for research purposes. Please ensure compliance with ethical guidelines when using adversarial attacks.
