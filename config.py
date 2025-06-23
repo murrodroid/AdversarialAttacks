@@ -108,12 +108,12 @@ class ModelRegistry:
         "swin_imagenet100": lambda: get_finetuned_model(cfg={"model_name": "swin", "output_dim": 100}),
         # adv training
         "resnet_imagenet20_adv": lambda: get_finetuned_model(
-            cfg={"model_name": "resnet", "output_dim": 20, "adv": True}
+            cfg={"model_name": "resnet", "output_dim": 20, "adversarial_training": True}
         ),
         "mobilenet_imagenet20_adv": lambda: get_finetuned_model(
-            cfg={"model_name": "mobilenet", "output_dim": 20, "adv": True}
+            cfg={"model_name": "mobilenet", "output_dim": 20, "adversarial_training": True}
         ),
-        "swin_imagenet20_adv": lambda: get_finetuned_model(cfg={"model_name": "swin", "output_dim": 20, "adv": True}),
+        "swin_imagenet20_adv": lambda: get_finetuned_model(cfg={"model_name": "swin", "output_dim": 20, "adversarial_training": True}),
         # robust models
         "resnet_imagenet20_robust": lambda: get_robust_model(cfg={"model_name": "resnet", "output_dim": 20, 'robust_weights': './src/models/weights/mobilenet_or_resnett20_robust.pt.xz'}),
         "mobilenet_imagenet20_robust": lambda: get_robust_model(cfg={"model_name": "mobilenet", "output_dim": 20, "width_mult": 1.5, 'robust_weights': './src/models/weights/mobilenet20_robust.pt.xz'}),
