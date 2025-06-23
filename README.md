@@ -9,14 +9,21 @@
 
 ## Abstract
 
-**missing**
+Machine learning systems become increasingly integrated into high-stakes environments such as healthcare, autonomous vehicles, and cybersecurity.
+As a result, the threat posed by adversarial attacks through small, often imperceptible input perturbations that cause misclassification becomes more pressing.
+This project investigates the severity of three prominent adversarial attack methods: I-FGSM, PGD, and CW.
+Multiple metrics are introduced to quantify adversarialness, including KL-divergence, PSNR, SSIM, ERGAS, and attack success rate.
+These metrics are applied across a variety of model architectures with and without robustness strategies such as adversarial training, attention smoothing, and Kernel extension.
+Using the statistical test, mixed-effects modeling, and general data analysis, the attack's performance is compared across configurations, and the trade-offs between clean accuracy and adversarial robustness are assessed.
+Firstly, the results reveal a lacking performance for CW due to an incompatible experiment set up.
+Despite that, findings show a significant difference between all attack performances across all models.
+Additionally, both robustness strategies: 1) adversarial training and 2) architectural robustness changes, both effectively increase resistance against adversarial attacks as seen through a decrease in success rate and reduced KL-divergence, at the cost of PSNR and clean data accuracy.
 
 ## Overview
 
 > Example result: I-FGSM at ε = 0.007 changes MobileNet confidence on ImageNet-20 class from 70.9% "*ski mask*" to 100% "*american lobster, [...]*"
 
 ![I-FGSM Example](assets/skimask_to_lobster.png)
-
 
 The project has created methods to evaluate the effectiveness of different attacks, and compare against robustness methods. The codebase is dynamic, meaning any added attacks, datasets or robustness methods etc., should be easy to add and implement into the structure.
 
@@ -48,7 +55,7 @@ The project has created methods to evaluate the effectiveness of different attac
 - **CIFAR-10**: 10-class image classification dataset
 - **ImageNet-20**: 20-class subset of ImageNet
 
-## Results
+<!-- ## Results -->
 
 ## Installation
 
